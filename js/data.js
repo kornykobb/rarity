@@ -1,6 +1,21 @@
 "use strict";
 window.RG = {};
-RG.version = "1.0.1";
+RG.version = "1.0.2";
+RG.changelog = [
+  {
+    version: "1.0.2",
+    date: "2026-10-18",
+    name: "A Little Balancing",
+    changes: [
+      "Lowered upgrade prices. Repeatable upgrades scale slower.",
+      "Lowered point multipliers.",
+      "Shop opens at 25 points.",
+      "Added a way to see changelogs",
+    ],
+    thanks:
+      "Grand thanks to the galaxy.click Oversight team for giving me some balancing tips. specifically, thank you to theseligatures. Here is what went down:",
+  },
+];
 (() => {
   const names = [
     "Abundant",
@@ -69,14 +84,21 @@ RG.version = "1.0.1";
     points: Math.max(1, Math.round(1.55 ** id)),
     appearance: RG.rarityAppearance(id + 1),
   }));
-  RG.balance = { luckStrength: 0.15, efficiencySeconds: 0.2, pointCurve: 0.15 };
+  RG.balance = {
+    luckStrength: 0.15,
+    efficiencySeconds: 0.2,
+    pointCurve: 0.25,
+    rollingKitBonus: 0.1,
+    pointBoosterBonus: 0.25,
+    pointFarmBonus: 0.1,
+  };
   RG.pointMultiplier = (bonus) =>
     1 + Math.log1p(bonus * RG.balance.pointCurve) / RG.balance.pointCurve;
   RG.upgrades = [
     {
       id: "handbook",
       name: "My Little Handbook",
-      cost: 35,
+      cost: 15,
       description:
         "A birthday gift from grandma. Gives you information on the roll screen.",
       requires: null,
@@ -84,16 +106,16 @@ RG.version = "1.0.1";
     {
       id: "rolling-kit",
       name: "My First Rolling Kit!",
-      cost: 75,
+      cost: 30,
       description:
-        "Another gift from granny! Makes you better at gathering points, adding +.2 to your point multiplier.",
+        "Another gift from granny! Makes you better at gathering points, adding +.1 to your point multiplier.",
       requires: "handbook",
     },
     {
       id: "two-leaf-clover",
       name: "2 Leaf Clover",
       description: "A somewhat lucky clover. +.2 luck.",
-      cost: 50,
+      cost: 25,
       requires: "rolling-kit",
     },
     {
@@ -101,7 +123,7 @@ RG.version = "1.0.1";
       name: "Lucky Eye",
       description:
         "You found some roadkill and its eye looked kind of lucky. You can now see rarity odds.",
-      cost: 300,
+      cost: 75,
       requires: "two-leaf-clover",
     },
     {
@@ -109,7 +131,7 @@ RG.version = "1.0.1";
       name: "Rolling Dumbell",
       description:
         "Another gift! From granny! You curl some dumbells, making you better at rolling. Roll cooldown reduced by 0.2",
-      cost: 95,
+      cost: 45,
       requires: "two-leaf-clover",
     },
     {
@@ -117,7 +139,7 @@ RG.version = "1.0.1";
       name: "Collection Book 2: Electric Boogaloo",
       description:
         "Granny decided to upgrade your subscription. You can now sort the collection book.",
-      cost: 150,
+      cost: 60,
       requires: "rolling-dumbell",
     },
     {
@@ -125,14 +147,14 @@ RG.version = "1.0.1";
       name: "Seal Of Approval",
       description:
         "A red wax seal, approving your collection. When you discover a new rarity, you get extra points.",
-      cost: 150,
+      cost: 75,
       requires: "collection-book-2",
     },
     {
       id: "upgrade-the-upgrades",
       name: "Upgrade the Upgrades",
       description: "You find an upgrade catalog, giving you more upgrades.",
-      cost: 400,
+      cost: 175,
       requires: "seal-of-approval",
     },
     {
@@ -140,7 +162,7 @@ RG.version = "1.0.1";
       name: "Logbook",
       description:
         "Another! Gift! From! Granny! It's a simple logbook, keeping your roll history (max 20)",
-      cost: 350,
+      cost: 125,
       requires: "upgrade-the-upgrades",
     },
     {
@@ -148,15 +170,15 @@ RG.version = "1.0.1";
       name: "Inventory",
       description:
         "You decide to start keeping inventory of how many rarities you have, allowing you to see rarity quantity.",
-      cost: 400,
+      cost: 150,
       requires: "logbook",
     },
     {
       id: "simple-point-booster",
       name: "Simple Point Booster",
       description:
-        "I couldn't think of a funny item right now. +.7 Point Multiplier",
-      cost: 500,
+        "I couldn't think of a funny item right now. +.25 Point Multiplier",
+      cost: 200,
       requires: "inventory",
     },
     {
@@ -164,7 +186,7 @@ RG.version = "1.0.1";
       name: "Remote-Cont-Roll",
       description:
         "Your grandma gives you a big red button that lets you roll from anywhere!",
-      cost: 1000,
+      cost: 400,
       requires: "simple-point-booster",
     },
   ];
@@ -175,8 +197,8 @@ RG.version = "1.0.1";
       name: "Roll Efficiency",
       description:
         "Train yourself in the art of rolling, decreasing roll speed by .2 second.",
-      cost: 125,
-      growth: 2.6,
+      cost: 50,
+      growth: 1.55,
       max: 10,
       effect: (stats) => `${stats.roll_time.toFixed(1)}s roll cooldown`,
     },
@@ -184,9 +206,9 @@ RG.version = "1.0.1";
       id: "point-farm",
       name: "Point Farm",
       description:
-        "Set up little stick-box traps for points, increasing your point multiplier by +.2",
-      cost: 75,
-      growth: 1.85,
+        "Set up little stick-box traps for points, increasing your point multiplier by +.1",
+      cost: 40,
+      growth: 1.45,
       max: 25,
       effect: (stats) =>
         `${RG.format(stats.point_multiplier)}× point multiplier`,
@@ -195,8 +217,8 @@ RG.version = "1.0.1";
       id: "luck-training",
       name: "Luck Training",
       description: "Lift a normal clover, increasing total luck by +.5",
-      cost: 175,
-      growth: 2.25,
+      cost: 90,
+      growth: 1.65,
       max: 25,
       effect: (stats) => `${RG.format(stats.luck)} total luck`,
     },
@@ -205,8 +227,8 @@ RG.version = "1.0.1";
       name: "Point Factory",
       description:
         "Start making counterfeit points on your own, adding +1 passive points per second per upgrade.",
-      cost: 150,
-      growth: 2,
+      cost: 80,
+      growth: 1.55,
       max: 10,
       effect: (stats) => `${RG.format(stats.passive_pps)} Points / second`,
       requires: "upgrade-the-upgrades",
@@ -216,8 +238,8 @@ RG.version = "1.0.1";
       name: "Adventurer",
       description:
         "Start looking closer at your points, boosting discovery points by +5",
-      cost: 150,
-      growth: 1.9,
+      cost: 50,
+      growth: 1.45,
       max: 15,
       effect: (stats) =>
         `+${RG.format(stats.discovery_points)} discovery points`,
@@ -232,8 +254,8 @@ RG.version = "1.0.1";
       description:
         "You're just beginning your rolling journey. You've got a long way!",
       requirementText: "100 Points",
-      rewardText: "+0.5 Point multiplier",
-      reward: { point_multiplier: 0.5 },
+      rewardText: "+0.15 Point multiplier",
+      reward: { point_multiplier: 0.15 },
       check: (engine) => engine.state.lifetime >= 100,
       grade: "F",
     },

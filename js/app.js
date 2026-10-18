@@ -58,7 +58,7 @@ RG.startApp = () => {
       saveFeedback.textContent = engine.saveMessage;
       saveDialog.showModal();
     },
-    "sound-button",
+    "sound-button settings-button",
   );
   sidebarFooter.append(settingsButton, saveStatus);
   sidebar.append(currency.node, sidebarStats, nav, sidebarFooter);
@@ -420,8 +420,16 @@ RG.startApp = () => {
     historyView,
   );
   shell.append(sidebar, main);
-  const version = E("span", "game-version", `v${RG.version}`);
-  root.append(shell, toasts.node, admin, saveDialog, version);
+  const changelog = RG.Changelog();
+  const version = E("button", "game-version", `v${RG.version}`);
+  version.type = "button";
+  version.setAttribute("aria-controls", changelog.id);
+  version.setAttribute("aria-expanded", "false");
+  version.addEventListener("click", () => changelog.togglePopover());
+  changelog.addEventListener("toggle", (event) =>
+    version.setAttribute("aria-expanded", String(event.newState === "open")),
+  );
+  root.append(shell, toasts.node, admin, saveDialog, version, changelog);
   function setTab(value) {
     if (value === "upgrades" && !engine.state.upgradesUnlocked) return;
     if (value === "achievements" && !engine.achievementsUnlocked) return;
@@ -810,7 +818,7 @@ RG.startApp = () => {
       repeatableRows.forEach((view) => view.update());
       if (
         engine.state.achievements.length !== achievementsBefore ||
-        [50, 75, 100].some(
+        [25, 50, 100].some(
           (milestone) =>
             lifetimeBefore < milestone && engine.state.lifetime >= milestone,
         )

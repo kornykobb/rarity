@@ -109,7 +109,7 @@
         if (
           Number.isSafeInteger(level) &&
           level >= 0 &&
-          next.lifetime >= 75 &&
+          next.lifetime >= 50 &&
           (!upgrade.requires || next.purchased.includes(upgrade.requires))
         )
           next.levels[upgrade.id] = Math.min(
@@ -119,7 +119,7 @@
       }
       next.upgradesUnlocked =
         input.upgradesUnlocked === true ||
-        next.lifetime >= 50 ||
+        next.lifetime >= 25 ||
         next.purchased.length > 0;
       next.achievements = RG.achievements
         .filter(
@@ -195,10 +195,12 @@
         ),
         point_multiplier: this.round(
           RG.pointMultiplier(
-            (this.owns("rolling-kit") ? 0.2 : 0) +
-              (this.owns("simple-point-booster") ? 0.7 : 0) +
+            (this.owns("rolling-kit") ? RG.balance.rollingKitBonus : 0) +
+              (this.owns("simple-point-booster")
+                ? RG.balance.pointBoosterBonus
+                : 0) +
               bonus("point_multiplier") +
-              this.state.levels["point-farm"] * 0.2,
+              this.state.levels["point-farm"] * RG.balance.pointFarmBonus,
           ),
         ),
         discovery_points:
@@ -269,7 +271,7 @@
       this.state.lifetime = this.round(
         Math.min(Number.MAX_SAFE_INTEGER, this.state.lifetime + amount),
       );
-      if (this.state.lifetime >= 50) this.state.upgradesUnlocked = true;
+      if (this.state.lifetime >= 25) this.state.upgradesUnlocked = true;
     }
     recordAction(action) {
       if (action === "clicked-rarity") this.state.flags.clickedRarity = true;
@@ -304,7 +306,7 @@
       return this.state.purchased.includes(id);
     }
     get repeatablesUnlocked() {
-      return this.state.lifetime >= 75;
+      return this.state.lifetime >= 50;
     }
     repeatableCost(id) {
       const upgrade = RG.repeatables.find((item) => item.id === id);

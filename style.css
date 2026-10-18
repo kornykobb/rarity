@@ -10,7 +10,7 @@
 }
 body {
   margin: 0;
-  background: #000'
+  background: #000;
 }
 button {
   font: inherit;
@@ -106,7 +106,7 @@ video {
 }
 .sidebar-footer {
   margin-top: auto;
-  padding: 12px;
+  padding: 12px 12px 32px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -928,7 +928,66 @@ video {
   bottom: 8px;
   color: #777;
   font-size: 11px;
-  pointer-events: none;
+  border: 0;
+  padding: 0;
+  line-height: 16px;
+  background: transparent;
+}
+.settings-button {
+  position: fixed;
+  left: 12px;
+  bottom: 8px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 16px;
+}
+.save-status:empty {
+  display: none;
+}
+.changelog {
+  position: fixed;
+  inset: auto 10px 34px auto;
+  margin: 0;
+  width: min(540px, calc(100vw - 20px));
+  max-height: min(650px, calc(100dvh - 60px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #444;
+  background: linear-gradient(#151515, #080808);
+  color: #ccc;
+  box-shadow: 0 6px 30px #000b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.changelog h2 {
+  margin: 4px 0 12px;
+  font-size: 16px;
+  font-weight: normal;
+}
+.changelog-date {
+  color: #888;
+  font-size: 12px;
+}
+.changelog ul {
+  padding-left: 18px;
+}
+.changelog:popover-open {
+  animation: changelog-in 180ms ease-out;
+}
+@keyframes changelog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .changelog:popover-open {
+    animation: none;
+  }
 }
 .settings-dialog::backdrop {
   background: #0009;

@@ -266,6 +266,32 @@
       },
     };
   };
+  RG.Changelog = () => {
+    const node = RG.el("section", "changelog");
+    node.id = "changelog";
+    node.setAttribute("popover", "auto");
+    node.setAttribute("aria-label", "Changelog");
+    const content = (entry) => {
+      const fragment = document.createDocumentFragment();
+      if (entry.thanks) fragment.append(RG.el("p", "", entry.thanks));
+      const date = RG.el("time", "changelog-date", entry.date);
+      date.dateTime = entry.date;
+      fragment.append(
+        date,
+        RG.el(
+          "h2",
+          "",
+          `v${entry.version}${entry.name ? ` - ${entry.name}` : ""}`,
+        ),
+      );
+      const list = RG.el("ul");
+      entry.changes.forEach((change) => list.append(RG.el("li", "", change)));
+      fragment.append(list);
+      return fragment;
+    };
+    RG.changelog.forEach((entry) => node.append(content(entry)));
+    return node;
+  };
   RG.ToastSystem = () => {
     const node = RG.el("div", "toast-stack");
     node.setAttribute("role", "region");
