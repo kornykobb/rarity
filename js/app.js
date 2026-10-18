@@ -136,14 +136,12 @@ RG.startApp = () => {
     multiplierStat = RG.Stat("Point multiplier"),
     totalStat = RG.Stat("Total rolls");
   const discoveryStat = RG.Stat("Discovery points"),
-    discoveryScaleStat = RG.Stat("Discovery scaling"),
     passiveStat = RG.Stat("Passive Points");
   rollInfo.append(
     cooldownStat.node,
     multiplierStat.node,
     totalStat.node,
     discoveryStat.node,
-    discoveryScaleStat.node,
     passiveStat.node,
   );
   controls.append(progress, rollButton, rollInfo);
@@ -408,11 +406,7 @@ RG.startApp = () => {
   saveDialog.append(
     saveHeading,
     sound,
-    E(
-      "p",
-      "save-feedback",
-      "Progress saves automatically in this browser profile. Other browser profiles and devices have their own progress.",
-    ),
+    E("p", "save-feedback", "Your progress saves automatically."),
     saveActions,
     importFile,
     saveFeedback,
@@ -426,7 +420,8 @@ RG.startApp = () => {
     historyView,
   );
   shell.append(sidebar, main);
-  root.append(shell, toasts.node, admin, saveDialog);
+  const version = E("span", "game-version", `v${RG.version}`);
+  root.append(shell, toasts.node, admin, saveDialog, version);
   function setTab(value) {
     if (value === "upgrades" && !engine.state.upgradesUnlocked) return;
     if (value === "achievements" && !engine.achievementsUnlocked) return;
@@ -621,14 +616,6 @@ RG.startApp = () => {
     rewardLabel.replaceChildren(
       E("span", "points-reward", `+${RG.format(last.amount)} Points`),
     );
-    if (last.discoveryAmount > 0)
-      rewardLabel.append(
-        E(
-          "span",
-          "discovery-reward",
-          ` (includes ${RG.format(last.discoveryAmount)} discovery)`,
-        ),
-      );
     if (last.isNew) {
       newRarityLabel.hidden = false;
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -691,8 +678,6 @@ RG.startApp = () => {
     if (historyKey !== nextHistoryKey) {
       historyKey = nextHistoryKey;
       historyView.replaceChildren();
-      if (!state.history.length)
-        historyView.append(E("p", "history-empty", "No rolls recorded yet."));
       for (const entry of [...state.history].reverse()) {
         const row = E("article", "history-row");
         const time = E(
@@ -710,7 +695,6 @@ RG.startApp = () => {
           RG.RarityText(entry.id),
           E("span", "history-points", `+${RG.format(entry.amount)} Points`),
         );
-        if (entry.isNew) row.append(E("span", "history-new", "New"));
         historyView.append(row);
       }
     }
@@ -748,10 +732,6 @@ RG.startApp = () => {
     totalStat.update(RG.format(state.rolls));
     discoveryStat.node.hidden = values.discovery_points === 0;
     discoveryStat.update(`+${RG.format(values.discovery_points)}`);
-    discoveryScaleStat.node.hidden = values.discovery_multiplier === 0;
-    discoveryScaleStat.update(
-      `${RG.format(values.discovery_multiplier)}× rarity points`,
-    );
     passiveStat.node.hidden = values.passive_pps === 0;
     passiveStat.update(`${RG.format(values.passive_pps)} / second`);
     sortControls.hidden = !engine.owns("collection-book-2");

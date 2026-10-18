@@ -1,5 +1,6 @@
 "use strict";
 window.RG = {};
+RG.version = "1.0.1";
 (() => {
   const names = [
     "Abundant",
@@ -85,7 +86,7 @@ window.RG = {};
       name: "My First Rolling Kit!",
       cost: 75,
       description:
-        "Another gift from granny! Makes you better at gathering points, adding +.2 to your point multiplier before diminishing returns.",
+        "Another gift from granny! Makes you better at gathering points, adding +.2 to your point multiplier.",
       requires: "handbook",
     },
     {
@@ -154,7 +155,7 @@ window.RG = {};
       id: "simple-point-booster",
       name: "Simple Point Booster",
       description:
-        "I couldn't think of a funny item right now. +.7 Point Multiplier before diminishing returns.",
+        "I couldn't think of a funny item right now. +.7 Point Multiplier",
       cost: 500,
       requires: "inventory",
     },
@@ -173,7 +174,7 @@ window.RG = {};
       id: "efficiency",
       name: "Roll Efficiency",
       description:
-        "Train yourself in the art of rolling, decreasing roll cooldown by 0.2 seconds.",
+        "Train yourself in the art of rolling, decreasing roll speed by .2 second.",
       cost: 125,
       growth: 2.6,
       max: 10,
@@ -183,7 +184,7 @@ window.RG = {};
       id: "point-farm",
       name: "Point Farm",
       description:
-        "Set up little stick-box traps for points, increasing your point multiplier by +.2 before diminishing returns.",
+        "Set up little stick-box traps for points, increasing your point multiplier by +.2",
       cost: 75,
       growth: 1.85,
       max: 25,
@@ -231,7 +232,7 @@ window.RG = {};
       description:
         "You're just beginning your rolling journey. You've got a long way!",
       requirementText: "100 Points",
-      rewardText: "+0.5 Point multiplier before diminishing returns",
+      rewardText: "+0.5 Point multiplier",
       reward: { point_multiplier: 0.5 },
       check: (engine) => engine.state.lifetime >= 100,
       grade: "F",

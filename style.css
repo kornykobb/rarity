@@ -753,12 +753,6 @@ video {
   outline: 1px solid #777;
   outline-offset: 8px;
 }
-.discovery-reward {
-  display: inline-block;
-  margin-left: 5px;
-  color: #89c995;
-  font-size: 12px;
-}
 .upgrade.owned {
   border-color: #31573b;
   background: linear-gradient(145deg, #14261a, #09110c 75%);
@@ -815,18 +809,13 @@ video {
   margin-bottom: 8px;
   background: linear-gradient(#171717, #080808);
 }
-.history-time,
-.history-empty {
+.history-time {
   color: #888;
   font-size: 12px;
 }
 .history-points {
   color: #bbb;
   font-size: 13px;
-}
-.history-new {
-  color: #75d98b;
-  font-size: 11px;
 }
 .best-anchor {
   position: relative;
@@ -932,6 +921,14 @@ video {
   background: #090909;
   border: 1px solid #444;
   color: #ccc;
+}
+.game-version {
+  position: fixed;
+  right: 10px;
+  bottom: 8px;
+  color: #777;
+  font-size: 11px;
+  pointer-events: none;
 }
 .settings-dialog::backdrop {
   background: #0009;
@@ -1086,10 +1083,6 @@ video {
   }
   .collection-sort {
     justify-content: flex-start;
-  }
-  .discovery-reward {
-    display: block;
-    margin: 5px 0 0;
   }
   .rarity-card.has-odds,
   .rarity-card.has-quantity {
