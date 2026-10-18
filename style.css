@@ -1,0 +1,1126 @@
+:root {
+  color-scheme: dark;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  background: #000;
+  color: #ddd;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #000;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+button:focus-visible {
+  outline: 2px solid #aaa;
+  outline-offset: 3px;
+}
+[hidden] {
+  display: none !important;
+}
+img,
+canvas,
+video {
+  image-rendering: pixelated;
+}
+.shell {
+  display: flex;
+  min-height: 100dvh;
+}
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #050505;
+  border-right: 1px solid #252525;
+  display: flex;
+  flex-direction: column;
+}
+.currency-strip {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  border-block: 1px solid #51d8ec88;
+  background: linear-gradient(#23b3cc99, #087b9399 55%, #004753aa);
+  box-shadow:
+    inset 0 -1px #0008,
+    0 3px 8px #0009;
+  color: #b5f5ff;
+}
+.currency-icon {
+  color: #70e9fc;
+  font: inherit;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  padding: 2px;
+  cursor: default;
+}
+.currency-value {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 12px;
+}
+.gloss-button {
+  color: #ddd;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: linear-gradient(#303030, #191919 55%, #090909);
+  box-shadow:
+    inset 0 -1px #000,
+    0 3px 8px #0008;
+}
+.gloss-button:hover:enabled {
+  border-color: #777;
+}
+.gloss-button:active:enabled {
+  background: linear-gradient(#080808, #222);
+  box-shadow: inset 0 2px 5px #000;
+}
+.nav-button {
+  padding: 10px 12px;
+  text-align: left;
+}
+.nav-button:not(.active) {
+  background: #080808;
+  color: #aaa;
+  border-color: #222;
+}
+.sidebar-footer {
+  margin-top: auto;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.sound-button {
+  background: none;
+  box-shadow: none;
+  border: 0;
+  padding: 4px 0;
+  color: #999;
+}
+.save-status {
+  display: block;
+  color: #aaa;
+  flex-basis: 100%;
+  font-size: 12px;
+}
+.main {
+  width: calc(100% - 240px);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+.header {
+  min-height: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 18px;
+  position: relative;
+  padding-inline: 70px;
+}
+.best-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eyebrow {
+  font-size: 14px;
+  font-weight: normal;
+  color: #aaa;
+}
+.best {
+  font-size: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+.no-best {
+  color: #777;
+}
+.roll-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 450px;
+}
+.stage {
+  flex: 1;
+  min-height: 320px;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.reveal-center {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 100%;
+  min-height: 160px;
+}
+.rarity-display {
+  grid-area: 1 / 1;
+  z-index: 1;
+  text-align: center;
+  max-width: 100%;
+  padding: 0 16px;
+}
+.rays {
+  grid-area: 1 / 1;
+  width: min(500px, 85vw);
+  aspect-ratio: 1;
+  position: absolute;
+  opacity: 0;
+  background: repeating-conic-gradient(
+    transparent 0deg 13deg,
+    color-mix(in srgb, var(--ray-color, #ccc) 24%, transparent) 15deg 18deg,
+    transparent 22deg 36deg
+  );
+  mask-image: radial-gradient(circle, #000 4%, #000a 25%, transparent 66%);
+  -webkit-mask-image: radial-gradient(
+    circle,
+    #000 4%,
+    #000a 25%,
+    transparent 66%
+  );
+  animation: rotate 45s linear infinite;
+  pointer-events: none;
+}
+.revealed .rays {
+  opacity: 1;
+}
+.reward-label {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: #bbb;
+  top: calc(50% + 78px);
+}
+.points-reward {
+  font-size: 14px;
+}
+.roll-controls {
+  width: min(320px, calc(100% - 36px));
+  margin-bottom: 64px;
+  padding-top: 24px;
+}
+.progress {
+  height: 2px;
+  background: #141414;
+  margin: 0 5px 10px;
+  overflow: hidden;
+}
+.progress-fill {
+  width: 0;
+  height: 100%;
+  background: #aaa;
+}
+.roll-button {
+  min-height: 56px;
+  width: 100%;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.roll-button:disabled {
+  color: #aaa;
+}
+.hero-rarity {
+  font-size: clamp(26px, 4.5vw, 58px);
+}
+.collection-view {
+  flex: 1;
+  padding: 24px;
+}
+.rarity-list {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rarity-card {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 16px;
+  color: #888;
+  border: 1px solid #383838;
+  background: linear-gradient(#252525, #191919 55%, #111);
+  box-shadow:
+    inset 0 -1px #000,
+    0 3px 7px #0009;
+  border-radius: 0;
+  position: relative;
+  grid-template-columns: minmax(0, 2fr) minmax(75px, 1fr);
+}
+.rarity-card.found {
+  border-color: color-mix(in srgb, var(--strip-color) 40%, #222);
+  background: linear-gradient(
+    color-mix(in srgb, var(--strip-color) 15%, #161616),
+    #111 55%,
+    #030303
+  );
+  color: #bbb;
+}
+.rarity-card .rarity-text {
+  font-size: 16px;
+}
+.rarity-count {
+  text-align: right;
+}
+.rarity-odds,
+.rarity-payout,
+.rarity-count {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@keyframes rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nav-button:disabled,
+.category-button:disabled {
+  color: #666;
+  border-color: #222;
+  background: linear-gradient(#151515, #080808);
+}
+.upgrade-view {
+  width: min(808px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+}
+.category-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.category-button {
+  min-width: 100px;
+  padding: 10px 20px;
+}
+.category-button.active {
+  border-color: #666;
+}
+.upgrade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.upgrade {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px;
+  border: 1px solid #333;
+  background: linear-gradient(#181818, #090909);
+  box-shadow:
+    inset 0 -1px #000,
+    0 3px 8px #0009;
+}
+.upgrade-content {
+  flex: 1;
+  min-width: 0;
+}
+.upgrade-name {
+  font-size: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.upgrade-description {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #999;
+  margin: 9px 0 0;
+}
+.upgrade-buy {
+  min-width: 110px;
+  padding: 12px;
+}
+.upgrade-buy:disabled {
+  color: #777;
+  border-color: #292929;
+}
+.roll-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 22px;
+  font-size: 14px;
+  color: #aaa;
+}
+.roll-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.achievements-button {
+  position: absolute;
+  right: 20px;
+  top: 19px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #bbb;
+  font-size: 18px;
+}
+.achievements-button:disabled {
+  background: linear-gradient(#292929, #141414);
+  color: #888;
+  border-color: #444;
+}
+.achievements-button.active {
+  border-color: #999;
+}
+.achievements-view {
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  align-content: start;
+  width: min(1040px, 100%);
+  gap: 30px;
+  padding: 30px 36px 50px;
+}
+.achievement-box {
+  position: relative;
+  overflow: visible;
+  border: 1px solid #444;
+  background: linear-gradient(#1c1c1c, #080808);
+  box-shadow:
+    inset 0 -1px #000,
+    0 4px 14px #000a;
+  padding: 20px 24px 26px;
+  margin-bottom: 28px;
+}
+.achievement-name {
+  font-size: 17px;
+  color: #ddd;
+  padding-right: 32px;
+}
+.achievement-description {
+  color: #aaa;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 10px 0 16px;
+}
+.achievement-requirement {
+  font-size: 13px;
+  color: #999;
+}
+.achievement-reward {
+  font-size: 13px;
+  color: #ccc;
+  margin-top: 8px;
+}
+.achievement-box.earned {
+  border-color: #626262;
+}
+.grade-text {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  display: inline-block;
+  font-family: Arial, sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 900;
+  -webkit-text-stroke: 3px #090909;
+  paint-order: stroke fill;
+  color: #aaa;
+  text-shadow: 0 2px 1px #000;
+}
+.grade-f {
+  color: #909090;
+  -webkit-text-stroke-color: #303030;
+}
+.grade-d {
+  color: #c2c2c2;
+  -webkit-text-stroke-color: #414141;
+}
+.grade-c {
+  color: #85be8d;
+  -webkit-text-stroke-color: #25432a;
+}
+.grade-b {
+  color: #8cbed7;
+  -webkit-text-stroke-color: #244458;
+}
+.grade-a {
+  color: #d5a2ef;
+  -webkit-text-stroke-color: #553469;
+}
+.grade-s,
+.grade-ss {
+  background: linear-gradient(
+    115deg,
+    #ff9393,
+    #ffe68a,
+    #a6ef9e,
+    #90e9eb,
+    #aaa7ff,
+    #f29bdc
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-stroke-color: #322b40;
+  text-shadow: none;
+}
+.grade-ss {
+  filter: drop-shadow(0 0 4px #fff8) drop-shadow(0 0 9px #e8a0ff88);
+}
+.toast-stack {
+  position: fixed;
+  inset: 90px 28px auto auto;
+  margin: 0;
+  padding: 0 0 20px 20px;
+  width: min(380px, calc(100vw - 28px));
+  max-height: calc(100dvh - 110px);
+  overflow: auto;
+  z-index: 1000;
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+.toast-stack::backdrop {
+  display: none;
+}
+.achievement-toast {
+  pointer-events: auto;
+  padding: 18px 30px 24px 22px;
+  margin: 0 0 30px;
+  animation: toast-in 0.2s ease-out;
+}
+.achievement-toast .achievement-name {
+  font-size: 15px;
+}
+.achievement-toast .achievement-description {
+  font-size: 13px;
+}
+.toast-dismiss {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 2px 5px;
+  color: #999;
+  font-size: 18px;
+}
+.admin-panel {
+  width: min(560px, calc(100vw - 32px));
+  padding: 24px;
+  background: #090909;
+  border: 1px solid #444;
+  color: #ccc;
+}
+.admin-panel::backdrop {
+  background: #0009;
+}
+.admin-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 17px;
+  margin-bottom: 24px;
+}
+.admin-actions,
+.toast-tests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.admin-panel .gloss-button {
+  padding: 10px 14px;
+}
+.admin-panel .gloss-button:disabled {
+  color: #666;
+}
+.admin-panel p {
+  margin-top: 24px;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.upgrade-level {
+  color: #888;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.upgrade-effect {
+  color: #aaa;
+  font-size: 13px;
+  margin-top: 10px;
+}
+.repeatable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(215px, 100%), 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.repeatable-upgrade {
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+  border-radius: 6px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 22px;
+  background: linear-gradient(145deg, #1d1d1d, #090909 75%);
+}
+.repeatable-upgrade .upgrade-content {
+  display: flex;
+  flex-direction: column;
+}
+.repeatable-upgrade .upgrade-name {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.repeatable-upgrade .upgrade-description {
+  margin-top: 16px;
+}
+.repeatable-upgrade .upgrade-effect {
+  margin-top: auto;
+  padding-top: 20px;
+}
+.repeatable-upgrade .upgrade-buy {
+  width: 100%;
+}
+.purchase-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #42d87125;
+  box-shadow:
+    inset 0 0 0 1px #80f9a5a0,
+    inset 0 0 40px #42d87130;
+  opacity: 0;
+  pointer-events: none;
+}
+.sidebar-stats {
+  width: 100%;
+}
+.sidebar-stat {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 11px 15px;
+  color: var(--stat-color);
+  border-bottom: 1px solid color-mix(in srgb, var(--stat-color) 28%, #111);
+  background: linear-gradient(
+    color-mix(in srgb, var(--stat-color) 12%, #131313),
+    #070707
+  );
+}
+.sidebar-stat-icon {
+  font-size: 20px;
+  line-height: 1;
+  width: 18px;
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+.sidebar-stat-name {
+  font-size: 14px;
+}
+.sidebar-stat-value {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-stat:focus-visible {
+  outline: 1px solid var(--stat-color);
+  outline-offset: -2px;
+}
+.stat-tooltip {
+  position: fixed;
+  z-index: 2000;
+  max-width: calc(100vw - 24px);
+  padding: 12px 16px;
+  background: #111;
+  color: #ddd;
+  border: 1px solid #444;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px #000c;
+  font-size: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.best-odds {
+  font-size: 13px;
+  color: #888;
+}
+.roll-rarity-odds {
+  position: absolute;
+  top: calc(50% + 48px);
+  width: 100%;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+.collection-sort {
+  width: min(760px, 100%);
+  margin: 0 auto 16px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  color: #aaa;
+}
+.collection-sort select {
+  font: inherit;
+  color: #ddd;
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 8px 12px;
+  max-width: 100%;
+}
+.new-rarity-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  white-space: nowrap;
+  color: #75e68f;
+  font-size: 17px;
+  text-shadow: 0 2px 3px #000;
+  pointer-events: none;
+}
+.rarity-display:focus-visible {
+  outline: 1px solid #777;
+  outline-offset: 8px;
+}
+.discovery-reward {
+  display: inline-block;
+  margin-left: 5px;
+  color: #89c995;
+  font-size: 12px;
+}
+.upgrade.owned {
+  border-color: #31573b;
+  background: linear-gradient(145deg, #14261a, #09110c 75%);
+}
+.upgrade.owned .upgrade-name {
+  color: #b8dec2;
+}
+.rarity-card.has-odds,
+.rarity-card.has-quantity {
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(65px, 1fr));
+}
+.rarity-card.has-odds.has-quantity {
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(65px, 1fr));
+}
+.wax-stamp {
+  position: absolute;
+  z-index: 2;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  left: 0;
+  top: 8px;
+  transform: translate(-50%, -50%) rotate(-16deg);
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px #000a);
+}
+.remote-roll {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  color: #ddd;
+  border-color: #444;
+  background: linear-gradient(#171717, #050505);
+}
+.remote-roll svg {
+  display: block;
+}
+.history-view {
+  width: min(808px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+}
+.history-row {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) auto 30px;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid #333;
+  padding: 15px;
+  margin-bottom: 8px;
+  background: linear-gradient(#171717, #080808);
+}
+.history-time,
+.history-empty {
+  color: #888;
+  font-size: 12px;
+}
+.history-points {
+  color: #bbb;
+  font-size: 13px;
+}
+.history-new {
+  color: #75d98b;
+  font-size: 11px;
+}
+.best-anchor {
+  position: relative;
+  min-width: 0;
+}
+.mini-roll-preview {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 7px;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 32px));
+  margin: 0 auto;
+  transform: translateY(6px);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.mini-roll-caption {
+  font-size: 11px;
+  color: #888;
+}
+.mini-rarity {
+  font-size: 12px;
+}
+.achievement-number {
+  position: absolute;
+  top: 13px;
+  right: 14px;
+  color: #777;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.achievement-toast .achievement-number {
+  top: auto;
+  bottom: 10px;
+  right: 14px;
+}
+.achievement-tile {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 25px 20px;
+}
+.achievement-tile .achievement-name {
+  padding-right: 18px;
+  font-size: 16px;
+}
+.achievement-tile .achievement-description {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.achievement-tile .achievement-requirement,
+.achievement-tile .achievement-reward {
+  font-size: 12px;
+}
+.achievement-tile.locked {
+  display: grid;
+  place-items: center;
+  background: #000;
+  border: 1px solid #222;
+  box-shadow: none;
+}
+.achievement-question {
+  font-size: 64px;
+  line-height: 1;
+  font-weight: normal;
+  color: #666;
+}
+.rarity-text {
+  display: inline-block;
+  font-family: Arial, sans-serif;
+  font-style: normal;
+  font-weight: var(--rarity-weight, 400);
+  letter-spacing: normal;
+  line-height: 1.3;
+  color: var(--rarity-color);
+  -webkit-text-stroke: var(--rarity-stroke, 0px) var(--rarity-color);
+  paint-order: stroke fill;
+  background: none;
+  text-shadow: none;
+  filter: none;
+}
+.rarity-gradient,
+.rarity-glow {
+  background: linear-gradient(180deg, #fff, var(--rarity-color));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-stroke-width: 0;
+}
+.rarity-glow {
+  filter: drop-shadow(0 0 5px var(--rarity-color));
+}
+.settings-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px;
+  background: #090909;
+  border: 1px solid #444;
+  color: #ccc;
+}
+.settings-dialog::backdrop {
+  background: #0009;
+}
+.settings-dialog .gloss-button {
+  min-height: 42px;
+  padding: 10px 14px;
+}
+.settings-sound {
+  width: 100%;
+}
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.settings-dialog .save-feedback {
+  margin: 16px 0;
+}
+.settings-dialog .save-feedback:empty {
+  display: none;
+}
+.save-feedback {
+  color: #aaa;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.session-notice {
+  padding: 36px;
+  color: #bbb;
+}
+.session-notice button {
+  padding: 10px 20px;
+}
+@media (max-width: 760px) {
+  .sidebar {
+    width: 170px;
+  }
+  .main {
+    width: calc(100% - 170px);
+  }
+  .collection-view {
+    padding: 16px 12px;
+  }
+  .rarity-card {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px;
+  }
+  .rarity-count {
+    text-align: left;
+  }
+  .rarity-card .rarity-text {
+    font-size: 14px;
+  }
+  .rarity-card.has-odds.has-quantity {
+    grid-template-columns: minmax(0, 1.5fr) minmax(65px, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid #252525;
+  }
+  .nav {
+    flex-direction: row;
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+  .nav-button {
+    flex: 1;
+    text-align: center;
+    flex-basis: 40%;
+  }
+  .sidebar-footer {
+    padding: 0 12px 10px;
+  }
+  .main {
+    width: 100%;
+    min-height: calc(100dvh - 155px);
+  }
+  .header {
+    min-height: 68px;
+    padding-inline: 60px;
+    padding-left: 12px;
+  }
+  .roll-view {
+    min-height: 380px;
+  }
+  .stage {
+    min-height: 270px;
+  }
+  .roll-controls {
+    margin-bottom: 36px;
+  }
+  .hero-rarity {
+    font-size: clamp(24px, 7vw, 36px);
+  }
+  .rays {
+    width: 340px;
+  }
+  .rarity-card {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+  .upgrade-view {
+    padding: 16px 12px;
+  }
+  .upgrade {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px;
+  }
+  .category-button {
+    flex: 1;
+  }
+  .achievements-button {
+    right: 12px;
+    top: 13px;
+  }
+  .best-block {
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100%;
+  }
+  .achievements-view {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: 24px 28px 40px;
+    gap: 28px;
+  }
+  .toast-stack {
+    top: 18px;
+    right: 14px;
+  }
+  .achievement-box {
+    padding: 18px 18px 27px;
+  }
+  .grade-text {
+    font-size: 30px;
+  }
+  .repeatable-upgrade {
+    min-height: 250px;
+  }
+  .best-odds {
+    font-size: 12px;
+  }
+  .collection-sort {
+    justify-content: flex-start;
+  }
+  .discovery-reward {
+    display: block;
+    margin: 5px 0 0;
+  }
+  .rarity-card.has-odds,
+  .rarity-card.has-quantity {
+    grid-template-columns: minmax(0, 1.5fr) minmax(65px, 1fr);
+  }
+  .history-view {
+    padding: 16px 12px;
+  }
+  .history-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .history-time {
+    grid-column: 1 / -1;
+  }
+  .collection-view {
+    padding-inline: 30px;
+  }
+  .achievement-tile {
+    width: 100%;
+    max-width: 310px;
+  }
+  .mini-roll-preview {
+    max-width: calc(100vw - 130px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
