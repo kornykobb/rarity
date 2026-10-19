@@ -78,10 +78,12 @@
   };
   RG.SidebarStat = (definition) => {
     const node = RG.el("div", `sidebar-stat sidebar-stat-${definition.id}`);
-    node.tabIndex = 0;
+    node.tabIndex = definition.tooltip ? 0 : -1;
     node.hidden = true;
     node.style.setProperty("--stat-color", definition.color);
-    const icon = RG.el("span", "sidebar-stat-icon", definition.icon);
+    const icon = RG.el("span", "sidebar-stat-icon");
+    if (typeof definition.icon === "function") icon.append(definition.icon());
+    else icon.textContent = definition.icon;
     icon.setAttribute("aria-hidden", "true");
     const value = RG.el("span", "sidebar-stat-value");
     node.append(
@@ -93,7 +95,7 @@
     tooltip.id = `stat-tooltip-${definition.id}`;
     tooltip.setAttribute("role", "tooltip");
     tooltip.hidden = true;
-    node.setAttribute("aria-describedby", tooltip.id);
+    if (definition.tooltip) node.setAttribute("aria-describedby", tooltip.id);
     node.append(tooltip);
     const position = () => {
       const rect = node.getBoundingClientRect(),
@@ -108,6 +110,7 @@
       tooltip.style.top = `${Math.max(12, Math.min(top, innerHeight - box.height - 12))}px`;
     };
     const show = () => {
+      if (!definition.tooltip) return;
       tooltip.hidden = false;
       position();
     };
@@ -130,7 +133,7 @@
       update(engine) {
         node.hidden = !definition.unlocked(engine);
         value.textContent = definition.value(engine.stats);
-        tooltip.textContent = definition.tooltip(engine.stats);
+        tooltip.textContent = definition.tooltip?.(engine.stats) || "";
         if (!tooltip.hidden) position();
       },
     };
@@ -157,10 +160,76 @@
       },
     };
   };
-  RG.Stat = (label) => {
+  let tooltipId = 0;
+  const tooltips = new Set();
+  RG.Tooltip = (target, content, { placement = "above" } = {}) => {
+    const node = RG.el("div", "game-tooltip");
+    node.id = `game-tooltip-${++tooltipId}`;
+    node.setAttribute("role", "tooltip");
+    node.setAttribute("popover", "manual");
+    target.setAttribute("aria-describedby", node.id);
+    document.body.append(node);
+    const hide = () => {
+      if (node.matches(":popover-open")) node.hidePopover();
+    };
+    const show = () => {
+      node.replaceChildren();
+      const value = typeof content === "function" ? content() : content;
+      if (typeof value === "string") node.textContent = value;
+      else node.append(value);
+      node.showPopover();
+      const rect = target.getBoundingClientRect(),
+        size = node.getBoundingClientRect();
+      let left = rect.left + (rect.width - size.width) / 2;
+      const gap = placement === "side" ? 42 : 10;
+      let top =
+        rect.top > size.height + gap + 8
+          ? rect.top - size.height - gap
+          : rect.bottom + 10;
+      if (placement === "side" && rect.right + size.width + 24 < innerWidth) {
+        left = rect.right + 14;
+        top = rect.top + (rect.height - size.height) / 2;
+      } else if (placement === "side" && rect.left > size.width + 24) {
+        left = rect.left - size.width - 14;
+        top = rect.top + (rect.height - size.height) / 2;
+      }
+      node.style.left = `${Math.max(10, Math.min(innerWidth - size.width - 10, left))}px`;
+      node.style.top = `${Math.max(10, Math.min(innerHeight - size.height - 10, top))}px`;
+    };
+    target.addEventListener("mouseenter", show);
+    target.addEventListener("focus", show);
+    target.addEventListener("mouseleave", hide);
+    target.addEventListener("blur", hide);
+    target.addEventListener("pointerdown", hide);
+    target.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") hide();
+    });
+    tooltips.add(node);
+    return {
+      hide,
+      destroy() {
+        hide();
+        node.remove();
+        tooltips.delete(node);
+      },
+    };
+  };
+  RG.clearTooltips = () => {
+    tooltips.forEach((node) => node.remove());
+    tooltips.clear();
+  };
+  RG.hideTooltips = () =>
+    tooltips.forEach((node) => {
+      if (node.matches(":popover-open")) node.hidePopover();
+    });
+  RG.Stat = (label, tooltip) => {
     const node = RG.el("div", "roll-stat");
     const value = RG.el("span");
     node.append(RG.el("span", "", label), value);
+    if (tooltip) {
+      node.tabIndex = 0;
+      RG.Tooltip(node, tooltip);
+    }
     return {
       node,
       update(text) {
@@ -206,8 +275,11 @@
       update() {
         const count = engine.state.levels[upgrade.id],
           stats = engine.stats;
-        node.hidden = !!upgrade.requires && !engine.owns(upgrade.requires);
-        node.classList.toggle("owned", count > 0);
+        node.hidden = !engine.repeatableAvailable(upgrade);
+        node.classList.toggle(
+          "owned",
+          upgrade.max !== null && count >= upgrade.max,
+        );
         level.textContent =
           upgrade.max === null ? `Lv. ${count}` : `${count} / ${upgrade.max}`;
         effect.textContent = upgrade.effect(stats);
@@ -227,8 +299,19 @@
       `achievement-box${toast ? " achievement-toast" : ""}`,
     );
     node.append(RG.el("span", "achievement-number", achievement.number));
+    const name = RG.el("div", "achievement-name");
+    if (achievement.faceHeart) {
+      name.setAttribute("aria-label", achievement.name);
+      const heart = RG.el("span", "beefer-heart");
+      heart.setAttribute("aria-hidden", "true");
+      name.append(
+        document.createTextNode("We "),
+        heart,
+        document.createTextNode(" Baby Beefer"),
+      );
+    } else name.textContent = achievement.name;
     node.append(
-      RG.el("div", "achievement-name", achievement.name),
+      name,
       RG.el("p", "achievement-description", achievement.description),
     );
     node.append(

@@ -10,6 +10,8 @@ RG.startApp = () => {
     location.protocol === "file:" ||
     ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
   let stopped = false;
+  let shopCategory = "main",
+    collectionCategory = "rarities";
   let tab = "roll",
     audioContext = null,
     tickBuffer = null,
@@ -21,6 +23,8 @@ RG.startApp = () => {
     visibleRarity = null;
   const beep = new Audio("assets/lichess-beep.mp3");
   beep.volume = 0.6;
+  const meow = new Audio("assets/baby-beefer-meow.mp3");
+  meow.volume = 0.7;
   const shell = E("div", "shell");
   const sidebar = E("aside", "sidebar");
   const currency = RG.CurrencyStrip();
@@ -60,7 +64,21 @@ RG.startApp = () => {
     },
     "sound-button settings-button",
   );
-  sidebarFooter.append(settingsButton, saveStatus);
+  const beeferButton = RG.Button(
+    "",
+    () => {
+      engine.recordAction("beefer");
+      if (engine.state.sound) {
+        meow.currentTime = 0;
+        meow.play().catch(() => {});
+      }
+      update();
+    },
+    "beefer-button",
+  );
+  beeferButton.setAttribute("aria-label", "Baby Beefer");
+  beeferButton.append(RG.BeeferOrb());
+  sidebarFooter.append(settingsButton, beeferButton, saveStatus);
   sidebar.append(currency.node, sidebarStats, nav, sidebarFooter);
   const main = E("main", "main");
   const header = E("header", "header");
@@ -132,11 +150,28 @@ RG.startApp = () => {
   rollButton.append(buttonText);
   const rollInfo = E("div", "roll-info");
   rollInfo.hidden = true;
-  const cooldownStat = RG.Stat("Roll cooldown"),
-    multiplierStat = RG.Stat("Point multiplier"),
-    totalStat = RG.Stat("Total rolls");
-  const discoveryStat = RG.Stat("Discovery points"),
-    passiveStat = RG.Stat("Passive Points");
+  const cooldownStat = RG.Stat(
+      "Roll Speed",
+      "Time each roll takes. Lower is faster. A roll in progress keeps its starting speed.",
+    ),
+    multiplierStat = RG.Stat(
+      "Point multiplier",
+      "Multiplies Points earned from rolling. Includes upgrades, achievements and passive treasures. Discovery bonuses and passive Points are separate. Purchases affect the next roll.",
+    ),
+    totalStat = RG.Stat(
+      "Total rolls",
+      "Number of completed rolls. Interrupted rolls do not count.",
+    );
+  const discoveryStat = RG.Stat(
+      "Discovery points",
+      () =>
+        `Extra Points for finding a rarity for the first time. Flat bonus: ${RG.format(engine.stats.discovery_points)}. ${engine.owns("seal-of-approval") ? "Seal Of Approval also adds that rarity's base Point value. " : ""}Duplicates get no discovery bonus. This bonus is not multiplied by your Point multiplier.`,
+    ),
+    passiveStat = RG.Stat(
+      "Passive Points",
+      () =>
+        `Points earned automatically each second, including time away. Achievement Boost currently adds ${RG.format(engine.stats.achievement_pps)} PPS from your ${engine.state.achievements.length} achievements. Finally Passive adds 5 PPS once earned.`,
+    );
   rollInfo.append(
     cooldownStat.node,
     multiplierStat.node,
@@ -149,6 +184,22 @@ RG.startApp = () => {
   const collection = E("section", "collection-view");
   collection.hidden = true;
   collection.setAttribute("aria-label", "Collection");
+  const collectionNav = E("nav", "category-nav collection-categories");
+  collectionNav.setAttribute("aria-label", "Collection categories");
+  const rarityCategory = RG.Button(
+    "Rarities",
+    () => setCollectionCategory("rarities"),
+    "category-button active",
+  );
+  const treasureCategory = RG.Button(
+    "Treasures",
+    () => setCollectionCategory("treasures"),
+    "category-button",
+  );
+  collectionNav.append(rarityCategory, treasureCategory);
+  const rarityCollection = E("div");
+  const treasureField = RG.TreasureField(engine);
+  treasureField.node.hidden = true;
   const sortControls = E("div", "collection-sort");
   sortControls.hidden = true;
   const sortLabel = E("label", "", "Sort");
@@ -170,7 +221,25 @@ RG.startApp = () => {
   });
   sortControls.append(sortLabel, sortSelect);
   const grid = E("div", "rarity-list");
-  collection.append(sortControls, grid);
+  rarityCollection.append(sortControls, grid);
+  collection.append(collectionNav, rarityCollection, treasureField.node);
+  function setCollectionCategory(category) {
+    collectionCategory = category;
+    rarityCollection.hidden = category !== "rarities";
+    treasureField.node.hidden = category !== "treasures";
+    rarityCategory.classList.toggle("active", category === "rarities");
+    treasureCategory.classList.toggle("active", category === "treasures");
+    rarityCategory.setAttribute(
+      "aria-current",
+      category === "rarities" ? "page" : "false",
+    );
+    treasureCategory.setAttribute(
+      "aria-current",
+      category === "treasures" ? "page" : "false",
+    );
+    treasureField.activate(tab === "collection" && category === "treasures");
+    RG.hideTooltips();
+  }
   const collectionRows = RG.rarities.map((rarity) => {
     const row = E("article", "rarity-card");
     const label = E("div", "collection-rarity");
@@ -202,7 +271,26 @@ RG.startApp = () => {
     "category-button",
   );
   repeatableCategory.disabled = true;
-  categoryNav.append(mainCategory, repeatableCategory);
+  const marketCategory = RG.Button(
+    "",
+    () => setShopCategory("market"),
+    "night-market-tab",
+  );
+  marketCategory.setAttribute("aria-label", "Night Market");
+  marketCategory.hidden = true;
+  const marketIcon = E("img");
+  marketIcon.src = "assets/night-market.png";
+  marketIcon.alt = "";
+  marketCategory.append(marketIcon);
+  for (const name of ["mouseenter", "focus"])
+    marketCategory.addEventListener(name, () =>
+      root.classList.add("market-hover"),
+    );
+  for (const name of ["mouseleave", "blur"])
+    marketCategory.addEventListener(name, () =>
+      root.classList.remove("market-hover"),
+    );
+  categoryNav.append(mainCategory, repeatableCategory, marketCategory);
   const upgradeList = E("div", "upgrade-list");
   const upgradeRows = RG.upgrades.map((upgrade) =>
     RG.Upgrade(upgrade, engine, (id) => {
@@ -224,9 +312,50 @@ RG.startApp = () => {
     }),
   );
   repeatableRows.forEach((view) => repeatableList.append(view.node));
-  upgradeView.append(categoryNav, upgradeList, repeatableList);
+  const marketFlash = E("div", "market-flash");
+  marketFlash.setAttribute("aria-hidden", "true");
+  const marketVignette = E("div", "market-vignette");
+  marketVignette.setAttribute("aria-hidden", "true");
+  const nightMarket = RG.NightMarket(engine, () => {
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduced)
+      shell.animate(
+        [
+          { transform: "translate(0)" },
+          { transform: "translate(-5px,2px)" },
+          { transform: "translate(4px,-2px)" },
+          { transform: "translate(0)" },
+        ],
+        { duration: 330, easing: "ease-out" },
+      );
+    marketFlash.animate(
+      [
+        { opacity: 0 },
+        { opacity: reduced ? 0.08 : 0.22, offset: 0.2 },
+        { opacity: 0 },
+      ],
+      { duration: reduced ? 200 : 380 },
+    );
+    update();
+  });
+  upgradeView.append(
+    categoryNav,
+    upgradeList,
+    repeatableList,
+    nightMarket.node,
+  );
   function setShopCategory(category) {
     if (category === "repeatables" && !engine.repeatablesUnlocked) return;
+    if (category === "market" && !engine.nightMarketUnlocked) return;
+    if (shopCategory === "market" && category !== "market") nightMarket.leave();
+    if (shopCategory !== "market" && category === "market") nightMarket.enter();
+    shopCategory = category;
+    nightMarket.node.hidden = category !== "market";
+    root.classList.toggle("market-mode", category === "market");
+    document.body.classList.toggle("market-mode", category === "market");
+    root.classList.remove("market-hover");
+    marketCategory.setAttribute("aria-pressed", String(category === "market"));
+    RG.hideTooltips();
     upgradeList.hidden = category !== "main";
     repeatableList.hidden = category !== "repeatables";
     mainCategory.classList.toggle("active", category === "main");
@@ -267,10 +396,8 @@ RG.startApp = () => {
     if (engine.grantPoints(1000)) update();
   });
   const fastRolls = RG.Button("Fast rolls off", () => {
-    if (!engine.rolling) {
-      engine.fastRolls = !engine.fastRolls;
-      update();
-    }
+    engine.fastRolls = !engine.fastRolls;
+    update();
   });
   function exportProgress() {
     engine.accrue();
@@ -305,6 +432,143 @@ RG.startApp = () => {
     E("p", "", "Toast tests"),
     testButtons,
   );
+  function adminSection(title) {
+    const section = E("fieldset", "admin-section");
+    section.append(E("legend", "", title));
+    admin.append(section);
+    return section;
+  }
+  function adminSelect(items, label) {
+    const select = E("select");
+    select.setAttribute("aria-label", label);
+    items.forEach(([id, name]) => {
+      const option = E("option", "", name);
+      option.value = id;
+      select.append(option);
+    });
+    return select;
+  }
+  function adminChange(change) {
+    engine.accrue();
+    change();
+    engine.state = engine.validate(engine.state);
+    engine.checkAchievements();
+    engine.save();
+    update();
+  }
+  const progressionTools = adminSection("Progress");
+  const amount = E("input");
+  amount.type = "number";
+  amount.min = "1";
+  amount.max = "1000000000";
+  amount.value = "10000";
+  amount.setAttribute("aria-label", "Points to grant");
+  progressionTools.append(
+    amount,
+    RG.Button("Grant Points", () => {
+      const value = Number(amount.value);
+      if (Number.isFinite(value) && value > 0 && value <= 1e9) {
+        engine.grantPoints(value);
+        update();
+      }
+    }),
+    RG.Button("Unlock Main upgrades", () =>
+      adminChange(() => {
+        engine.state.purchased = RG.upgrades.map((item) => item.id);
+        engine.state.upgradesUnlocked = true;
+      }),
+    ),
+  );
+  const upgradeTools = adminSection("Repeatable upgrades");
+  const upgradeSelect = adminSelect(
+    RG.repeatables.map((item) => [item.id, item.name]),
+    "Repeatable upgrade",
+  );
+  function setLevel(max) {
+    const item = RG.repeatables.find((item) => item.id === upgradeSelect.value);
+    if (!engine.repeatableAvailable(item)) return;
+    adminChange(() => {
+      engine.state.levels[item.id] = max
+        ? item.max
+        : Math.min(item.max, engine.state.levels[item.id] + 1);
+    });
+  }
+  upgradeTools.append(
+    upgradeSelect,
+    RG.Button("Add level", () => setLevel(false)),
+    RG.Button("Max level", () => setLevel(true)),
+  );
+  const marketTools = adminSection("Night Market");
+  marketTools.append(
+    RG.Button("Unlock Night Market", () =>
+      adminChange(() => {
+        engine.state.maxRolledOdds = Math.max(60, engine.state.maxRolledOdds);
+        engine.state.upgradesUnlocked = true;
+      }),
+    ),
+  );
+  const treasureSelect = adminSelect(
+    RG.treasures.map((item) => [item.id, item.name]),
+    "Treasure",
+  );
+  marketTools.append(
+    treasureSelect,
+    RG.Button("Grant treasure", () =>
+      adminChange(() => {
+        if (!engine.ownsTreasure(treasureSelect.value))
+          engine.state.treasures.push(treasureSelect.value);
+      }),
+    ),
+    RG.Button("Restock treasure", () => {
+      adminChange(() => {
+        engine.state.treasures = engine.state.treasures.filter(
+          (id) => id !== treasureSelect.value,
+        );
+      });
+      nightMarket.leave();
+    }),
+  );
+  const quotes = adminSelect(
+    [
+      [-1, RG.shadowPoorQuote],
+      ...RG.shadowQuotes.map((quote, index) => [index, quote]),
+    ],
+    "Shadow Guy quote",
+  );
+  marketTools.append(
+    quotes,
+    RG.Button("Preview quote", () => {
+      if (!engine.nightMarketUnlocked) return;
+      admin.close();
+      setTab("upgrades");
+      setShopCategory("market");
+      nightMarket.talk(Number(quotes.value));
+    }),
+  );
+  const achievementTools = adminSection("Achievements");
+  const achievementSelect = adminSelect(
+    RG.achievements.map((item) => [item.id, `${item.number}: ${item.name}`]),
+    "Achievement",
+  );
+  achievementTools.append(
+    achievementSelect,
+    RG.Button("Preview toast", () => {
+      toasts.show(
+        RG.achievements.find((item) => item.id === achievementSelect.value),
+      );
+    }),
+    RG.Button("Grant achievement", () => {
+      const item = RG.achievements.find(
+        (item) => item.id === achievementSelect.value,
+      );
+      adminChange(() => {
+        if (engine.state.achievements.includes(item.id)) return;
+        engine.state.achievements.push(item.id);
+        if (item.reward.points) engine.credit(item.reward.points);
+        engine.pendingAchievements.push(item);
+      });
+    }),
+  );
   if (adminEnabled)
     currency.icon.addEventListener("click", () => {
       if (++starClicks === 10) {
@@ -332,7 +596,6 @@ RG.startApp = () => {
     const file = importFile.files[0];
     if (!file) return;
     try {
-      if (engine.rolling) throw new Error("Finish the current roll first.");
       if (file.size > 1024 * 1024) throw new Error("Save file is too large.");
       const parsed = JSON.parse(await file.text());
       engine.validate(parsed);
@@ -359,6 +622,11 @@ RG.startApp = () => {
   const saveActions = E("div", "settings-actions");
   saveActions.append(RG.Button("Export save", exportProgress), importButton);
   function clearReveal() {
+    cancelAnimationFrame(frame);
+    activeRoll = null;
+    engine.cancelRoll();
+    buttonText.textContent = "Roll Rarity";
+    stopSound();
     visibleRarity = null;
     display.replaceChildren();
     display.tabIndex = -1;
@@ -429,17 +697,38 @@ RG.startApp = () => {
   changelog.addEventListener("toggle", (event) =>
     version.setAttribute("aria-expanded", String(event.newState === "open")),
   );
-  root.append(shell, toasts.node, admin, saveDialog, version, changelog);
+  changelog.addEventListener("toggle", (event) => {
+    if (event.newState === "open") {
+      engine.recordAction("changelog");
+      update();
+    }
+  });
+  root.append(
+    shell,
+    toasts.node,
+    admin,
+    saveDialog,
+    version,
+    changelog,
+    marketFlash,
+    marketVignette,
+  );
   function setTab(value) {
     if (value === "upgrades" && !engine.state.upgradesUnlocked) return;
     if (value === "achievements" && !engine.achievementsUnlocked) return;
     if (value === "history" && !engine.owns("logbook")) return;
+    if (value !== "upgrades" && shopCategory === "market")
+      setShopCategory("main");
     tab = value;
     rollView.hidden = value !== "roll";
     collection.hidden = value !== "collection";
     upgradeView.hidden = value !== "upgrades";
     achievementsView.hidden = value !== "achievements";
     historyView.hidden = value !== "history";
+    treasureField.activate(
+      value === "collection" && collectionCategory === "treasures",
+    );
+    RG.hideTooltips();
     achievementsButton.classList.toggle("active", value === "achievements");
     achievementsButton.setAttribute(
       "aria-pressed",
@@ -479,6 +768,7 @@ RG.startApp = () => {
   const noiseSources = new Set();
   function stopSound() {
     beep.pause();
+    meow.pause();
     for (const source of noiseSources) {
       try {
         source.stop();
@@ -533,7 +823,9 @@ RG.startApp = () => {
     visibleRarity = id;
     display.replaceChildren(RG.RarityText(id, "hero-rarity"));
     display.tabIndex = 0;
-    rarityOdds.textContent = RG.oddsText(engine.chances[id]);
+    rarityOdds.textContent = RG.oddsText(
+      engine.pendingRoll?.chances[id] ?? engine.chances[id],
+    );
     stage.style.setProperty("--ray-color", RG.rarities[id].color);
     if (activeRoll?.remote)
       miniPreview.replaceChildren(
@@ -543,7 +835,11 @@ RG.startApp = () => {
   }
   async function startRoll(remote = false) {
     const roll = engine.begin();
-    if (!roll) return;
+    if (!roll) {
+      update();
+      return;
+    }
+    if (remote) engine.recordAction("remote-roll");
     activeRoll = roll;
     activeRoll.remote = remote;
     miniPreview.getAnimations().forEach((animation) => animation.cancel());
@@ -676,9 +972,11 @@ RG.startApp = () => {
         );
     }
     if (visibleRarity !== null)
-      rarityOdds.textContent = RG.oddsText(engine.chances[visibleRarity]);
+      rarityOdds.textContent = RG.oddsText(
+        engine.pendingRoll?.chances[visibleRarity] ??
+          engine.chances[visibleRarity],
+      );
     rarityOdds.hidden = !showOdds;
-    rollButton.disabled = remoteRoll.disabled = engine.rolling;
     remoteRoll.hidden = !engine.owns("remote-cont-roll");
     historyTab.disabled = !engine.owns("logbook");
     historyTab.textContent = engine.owns("logbook") ? "History" : "???";
@@ -720,10 +1018,6 @@ RG.startApp = () => {
     );
     achievementRows.forEach((view) => view.update(engine));
     for (const item of engine.pendingAchievements.splice(0)) toasts.show(item);
-    grant100.disabled =
-      grant1000.disabled =
-      fastRolls.disabled =
-        engine.rolling;
     fastRolls.textContent = engine.fastRolls
       ? "Fast rolls on"
       : "Fast rolls off";
@@ -734,12 +1028,18 @@ RG.startApp = () => {
       ? "Upgrades"
       : "???";
     repeatableRows.forEach((view) => view.update());
+    marketCategory.hidden = !engine.nightMarketUnlocked;
+    nightMarket.update();
+    treasureField.update();
     rollInfo.hidden = !engine.owns("handbook");
     cooldownStat.update(`${values.roll_time.toFixed(1)}s`);
     multiplierStat.update(`${RG.format(values.point_multiplier)}×`);
     totalStat.update(RG.format(state.rolls));
-    discoveryStat.node.hidden = values.discovery_points === 0;
-    discoveryStat.update(`+${RG.format(values.discovery_points)}`);
+    discoveryStat.node.hidden =
+      values.discovery_points === 0 && values.discovery_multiplier === 0;
+    discoveryStat.update(
+      `+${RG.format(values.discovery_points)}${values.discovery_multiplier ? " + rarity value" : ""}`,
+    );
     passiveStat.node.hidden = values.passive_pps === 0;
     passiveStat.update(`${RG.format(values.passive_pps)} / second`);
     sortControls.hidden = !engine.owns("collection-book-2");
@@ -748,8 +1048,6 @@ RG.startApp = () => {
     sortSelect.querySelector('option[value="count"]').disabled = !showQuantity;
     sound.textContent = state.sound ? "Sound on" : "Sound off";
     sound.setAttribute("aria-pressed", String(state.sound));
-    importButton.disabled = engine.rolling;
-    resetButton.disabled = restoreButton.disabled = engine.rolling;
     restoreButton.hidden = !engine.hasResetBackup();
     saveStatus.textContent = engine.saveOK
       ? ""
@@ -852,6 +1150,11 @@ RG.startApp = () => {
     activeRoll = null;
     engine.cancelRoll();
     stopSound();
+    RG.stopOrbs();
+    treasureField.stop();
+    nightMarket.stop();
+    RG.clearTooltips();
+    document.body.classList.remove("market-mode");
     document.removeEventListener("visibilitychange", visibilityChanged);
     engine.accrue();
     engine.save();

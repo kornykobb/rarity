@@ -15,7 +15,17 @@
     upgradesUnlocked: false,
     purchased: [],
     achievements: [],
-    flags: { clickedRarity: false, mutedOnce: false },
+    treasures: [],
+    maxRolledOdds: 0,
+    marketName: "",
+    flags: {
+      clickedRarity: false,
+      mutedOnce: false,
+      beeferClicked: false,
+      readChangelog: false,
+      usedRemote: false,
+      spammedRoll: false,
+    },
     collectionSort: "rarity",
     levels: Object.fromEntries(RG.repeatables.map((item) => [item.id, 0])),
   });
@@ -38,6 +48,7 @@
       this.pendingRoll = null;
       this.pendingAchievements = [];
       this.fastRolls = false;
+      this.ignoredRollClicks = [];
       this.load();
       const accrued = this.accrue();
       if (this.checkAchievements() || accrued > 0) this.save();
@@ -54,11 +65,14 @@
           return;
         }
         this.state = this.validate(parsed);
+        this.migrateLegacyOdds(parsed);
       } catch {
         try {
           const backup = this.storage.getItem(`${KEY}.backup`);
           if (!backup) throw new Error("No backup");
-          this.state = this.validate(JSON.parse(backup));
+          const recovered = JSON.parse(backup);
+          this.state = this.validate(recovered);
+          this.migrateLegacyOdds(recovered);
           this.saveMessage = "Recovered saved backup.";
           this.save();
         } catch {
@@ -104,12 +118,21 @@
           next.purchased.push(upgrade.id);
       }
       next.lifetime = Math.max(next.lifetime, next.points);
+      next.achievements = RG.achievements
+        .filter(
+          (item) =>
+            Array.isArray(input.achievements) &&
+            input.achievements.includes(item.id),
+        )
+        .map((item) => item.id);
       for (const upgrade of RG.repeatables) {
         const level = input.levels?.[upgrade.id];
         if (
           Number.isSafeInteger(level) &&
           level >= 0 &&
           next.lifetime >= 50 &&
+          (!upgrade.requiresAchievement ||
+            next.achievements.includes(upgrade.requiresAchievement)) &&
           (!upgrade.requires || next.purchased.includes(upgrade.requires))
         )
           next.levels[upgrade.id] = Math.min(
@@ -121,14 +144,26 @@
         input.upgradesUnlocked === true ||
         next.lifetime >= 25 ||
         next.purchased.length > 0;
-      next.achievements = RG.achievements
+      next.treasures = RG.treasures
         .filter(
           (item) =>
-            Array.isArray(input.achievements) &&
-            input.achievements.includes(item.id),
+            Array.isArray(input.treasures) && input.treasures.includes(item.id),
         )
         .map((item) => item.id);
+      if (Number.isFinite(input.maxRolledOdds) && input.maxRolledOdds >= 0)
+        next.maxRolledOdds = Math.min(
+          Number.MAX_SAFE_INTEGER,
+          input.maxRolledOdds,
+        );
+      if (next.treasures.length)
+        next.maxRolledOdds = Math.max(60, next.maxRolledOdds);
+      if (next.maxRolledOdds >= 60) next.upgradesUnlocked = true;
+      next.marketName = this.cleanMarketName(input.marketName);
       next.flags.clickedRarity = input.flags?.clickedRarity === true;
+      next.flags.beeferClicked = input.flags?.beeferClicked === true;
+      next.flags.readChangelog = input.flags?.readChangelog === true;
+      next.flags.usedRemote = input.flags?.usedRemote === true;
+      next.flags.spammedRoll = input.flags?.spammedRoll === true;
       next.flags.mutedOnce =
         input.flags?.mutedOnce === true || input.sound === false;
       if (
@@ -170,6 +205,18 @@
         next.lastAccrual = Math.min(Date.now(), input.lastAccrual);
       return next;
     }
+    migrateLegacyOdds(input) {
+      if (Object.hasOwn(input, "maxRolledOdds")) return;
+      const chances = this.chances;
+      this.state.counts.forEach((count, id) => {
+        if (count > 0)
+          this.state.maxRolledOdds = Math.max(
+            this.state.maxRolledOdds,
+            1 / chances[id],
+          );
+      });
+      if (this.nightMarketUnlocked) this.state.upgradesUnlocked = true;
+    }
     get stats() {
       const bonus = (key) =>
         RG.achievements.reduce(
@@ -201,26 +248,43 @@
                 : 0) +
               bonus("point_multiplier") +
               this.state.levels["point-farm"] * RG.balance.pointFarmBonus,
-          ),
+          ) *
+            (1 +
+              RG.treasures.reduce(
+                (sum, item) =>
+                  sum +
+                  (this.state.treasures.includes(item.id)
+                    ? item.achievementBonus * this.state.achievements.length
+                    : 0),
+                0,
+              )),
         ),
         discovery_points:
           bonus("discovery_points") + this.state.levels.adventurer * 5,
         discovery_multiplier: this.owns("seal-of-approval") ? 1 : 0,
-        passive_pps: this.state.levels["point-factory"],
+        achievement_pps: this.round(
+          this.state.levels["achievement-boost"] *
+            this.state.achievements.length *
+            0.1,
+        ),
+        passive_pps: this.round(
+          this.state.levels["point-factory"] +
+            bonus("passive_pps") +
+            this.state.levels["achievement-boost"] *
+              this.state.achievements.length *
+              0.1,
+        ),
+        beef: bonus("beef"),
       };
     }
     get chances() {
-      const weights = RG.rarities.map(
-        (rarity) =>
-          rarity.weight **
-          (1 / (1 + this.stats.luck * RG.balance.luckStrength)),
-      );
+      const exponent = 1 / (1 + this.stats.luck * RG.balance.luckStrength);
+      const weights = RG.rarities.map((rarity) => rarity.weight ** exponent);
       const total = weights.reduce((a, b) => a + b, 0);
       return weights.map((weight) => weight / total);
     }
-    sample(random = this.random) {
+    sample(random = this.random, chances = this.chances) {
       let cursor = random();
-      const chances = this.chances;
       for (let id = 0; id < chances.length; id++) {
         cursor -= chances[id];
         if (cursor < 0) return id;
@@ -228,8 +292,8 @@
       return chances.length - 1;
     }
     samplePreview(previous, random = this.random) {
-      if (previous === null) return this.sample(random);
-      const chances = this.chances;
+      const chances = this.pendingRoll?.chances || this.chances;
+      if (previous === null) return this.sample(random, chances);
       let cursor = random() * (1 - chances[previous]);
       for (let id = 0; id < chances.length; id++) {
         if (id === previous) continue;
@@ -273,7 +337,27 @@
       );
       if (this.state.lifetime >= 25) this.state.upgradesUnlocked = true;
     }
+    cleanMarketName(value) {
+      return typeof value === "string"
+        ? value
+            .replace(/[\u0000-\u001f\u007f<>]/g, "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .slice(0, 32)
+        : "";
+    }
+    setMarketName(value) {
+      const name = this.cleanMarketName(value);
+      if (!name || this.readOnly) return false;
+      this.state.marketName = name;
+      this.save();
+      return true;
+    }
     recordAction(action) {
+      this.accrue();
+      if (action === "changelog") this.state.flags.readChangelog = true;
+      if (action === "remote-roll") this.state.flags.usedRemote = true;
+      if (action === "beefer") this.state.flags.beeferClicked = true;
       if (action === "clicked-rarity") this.state.flags.clickedRarity = true;
       if (action === "mute") {
         this.state.sound = false;
@@ -283,6 +367,7 @@
       this.save();
     }
     setSound(enabled) {
+      this.accrue();
       this.state.sound = enabled;
       if (!enabled) this.state.flags.mutedOnce = true;
       this.checkAchievements();
@@ -308,6 +393,13 @@
     get repeatablesUnlocked() {
       return this.state.lifetime >= 50;
     }
+    repeatableAvailable(upgrade) {
+      return (
+        (!upgrade.requires || this.owns(upgrade.requires)) &&
+        (!upgrade.requiresAchievement ||
+          this.state.achievements.includes(upgrade.requiresAchievement))
+      );
+    }
     repeatableCost(id) {
       const upgrade = RG.repeatables.find((item) => item.id === id);
       return upgrade
@@ -319,8 +411,7 @@
       return (
         !!upgrade &&
         this.repeatablesUnlocked &&
-        (!upgrade.requires || this.owns(upgrade.requires)) &&
-        !this.rolling &&
+        this.repeatableAvailable(upgrade) &&
         (upgrade.max === null || this.state.levels[id] < upgrade.max) &&
         this.state.points >= this.repeatableCost(id)
       );
@@ -357,12 +448,12 @@
     }
     grantPoints(amount) {
       if (
-        this.rolling ||
         !Number.isFinite(amount) ||
         amount <= 0 ||
         this.state.lifetime + amount > Number.MAX_SAFE_INTEGER
       )
         return false;
+      this.accrue();
       this.credit(amount);
       this.checkAchievements();
       this.save();
@@ -373,7 +464,6 @@
       return (
         !!upgrade &&
         this.state.upgradesUnlocked &&
-        !this.rolling &&
         !this.owns(id) &&
         (!upgrade.requires || this.owns(upgrade.requires)) &&
         this.state.points >= upgrade.cost
@@ -389,8 +479,49 @@
       this.save();
       return true;
     }
+    get nightMarketUnlocked() {
+      return this.state.maxRolledOdds >= 60;
+    }
+    ownsTreasure(id) {
+      return this.state.treasures.includes(id);
+    }
+    canBuyTreasure(id) {
+      const treasure = RG.treasures.find((item) => item.id === id);
+      return (
+        !!treasure &&
+        this.nightMarketUnlocked &&
+        !this.ownsTreasure(id) &&
+        this.state.points >= treasure.price
+      );
+    }
+    buyTreasure(id) {
+      this.accrue();
+      if (!this.canBuyTreasure(id)) return false;
+      const item = RG.treasures.find((item) => item.id === id);
+      this.state.points = this.round(this.state.points - item.price);
+      this.state.treasures.push(id);
+      this.save();
+      return true;
+    }
     begin() {
-      if (this.rolling) return null;
+      if (this.rolling) {
+        const now = this.rollClock();
+        this.ignoredRollClicks = this.ignoredRollClicks.filter(
+          (time) => now - time <= 2000,
+        );
+        this.ignoredRollClicks.push(now);
+        if (
+          this.ignoredRollClicks.length >= 5 &&
+          !this.state.flags.spammedRoll
+        ) {
+          this.accrue();
+          this.state.flags.spammedRoll = true;
+          this.checkAchievements();
+          this.save();
+        }
+        return null;
+      }
+      this.ignoredRollClicks = [];
       this.rolling = true;
       const stats = this.stats;
       this.pendingRoll = {
@@ -400,6 +531,9 @@
         pointMultiplier: stats.point_multiplier,
         discoveryPoints: stats.discovery_points,
         discoveryScale: stats.discovery_multiplier,
+        sealOwned: this.owns("seal-of-approval"),
+        logbookOwned: this.owns("logbook"),
+        chances: this.chances,
       };
       return { duration: this.pendingRoll.duration, id: this.pendingRoll.id };
     }
@@ -417,6 +551,7 @@
       )
         return null;
       const isNew = this.state.counts[id] === 0;
+      this.accrue();
       const baseAmount = this.round(
         RG.rarities[id].points * roll.pointMultiplier,
       );
@@ -430,22 +565,26 @@
       this.credit(amount);
       this.state.rolls++;
       this.state.counts[id]++;
-      if (this.owns("seal-of-approval")) this.state.stamped[id] = true;
+      if (roll.sealOwned) this.state.stamped[id] = true;
       if (isBest) this.state.best = id;
+      const odds = 1 / roll.chances[id];
+      this.state.maxRolledOdds = Math.max(this.state.maxRolledOdds, odds);
+      if (this.nightMarketUnlocked) this.state.upgradesUnlocked = true;
       this.checkAchievements();
       this.cancelRoll();
-      if (this.owns("logbook")) {
+      if (roll.logbookOwned) {
         this.state.history.push({
           id,
           at: Date.now(),
           roll: this.state.rolls,
           amount,
           isNew,
+          odds,
         });
         this.state.history = this.state.history.slice(-20);
       }
       this.save();
-      return { id, amount, baseAmount, discoveryAmount, isNew, isBest };
+      return { id, amount, baseAmount, discoveryAmount, isNew, isBest, odds };
     }
     save() {
       if (this.readOnly) return false;
@@ -466,7 +605,6 @@
       return true;
     }
     resetProgress() {
-      if (this.rolling) throw new Error("Finish the current roll first.");
       const previous = this.state;
       const previousReadOnly = this.readOnly;
       const previousAchievements = this.pendingAchievements;
@@ -489,6 +627,7 @@
         throw new Error("Reset could not be saved. Your progress was kept.");
       }
       this.fastRolls = false;
+      this.cancelRoll();
     }
     hasResetBackup() {
       try {
@@ -498,7 +637,6 @@
       }
     }
     restoreResetBackup() {
-      if (this.rolling) throw new Error("Finish the current roll first.");
       const raw = this.storage.getItem(`${KEY}.reset-backup`);
       if (!raw) throw new Error("No reset backup is available.");
       this.importSave(JSON.parse(raw));
@@ -518,8 +656,8 @@
           "Storage is unavailable. Export your current save before importing.",
         );
       }
-      this.cancelRoll();
       this.state = next;
+      this.migrateLegacyOdds(input);
       this.pendingAchievements = [];
       this.readOnly = false;
       this.saveMessage = "";
@@ -533,6 +671,7 @@
           "The imported save could not be stored. Your previous progress was kept.",
         );
       }
+      this.cancelRoll();
     }
   };
 })();

@@ -1,19 +1,20 @@
 "use strict";
 window.RG = {};
-RG.version = "1.0.2";
+RG.version = "1.0.3";
 RG.changelog = [
   {
-    version: "1.0.2",
+    version: "1.0.3",
     date: "2026-10-18",
-    name: "A Little Balancing",
+    name: "The Night Market",
     changes: [
-      "Lowered upgrade prices. Repeatable upgrades scale slower.",
-      "Lowered point multipliers.",
-      "Shop opens at 25 points.",
-      "Added a way to see changelogs",
+      "Added the Night Market and Treasures.",
+      "Added shop dialogue.",
+      "Added 7 achievements.",
+      "Added Achievement Boost.",
+      "Added stat tooltips. Roll cooldown is now Roll Speed.",
+      "Updated luck and lowered repeatable upgrade caps.",
+      "Updated rolling controls and sounds.",
     ],
-    thanks:
-      "Grand thanks to the galaxy.click Oversight team for giving me some balancing tips. specifically, thank you to theseligatures. Here is what went down:",
   },
 ];
 (() => {
@@ -85,7 +86,7 @@ RG.changelog = [
     appearance: RG.rarityAppearance(id + 1),
   }));
   RG.balance = {
-    luckStrength: 0.15,
+    luckStrength: 0.35,
     efficiencySeconds: 0.2,
     pointCurve: 0.25,
     rollingKitBonus: 0.1,
@@ -130,7 +131,7 @@ RG.changelog = [
       id: "rolling-dumbell",
       name: "Rolling Dumbell",
       description:
-        "Another gift! From granny! You curl some dumbells, making you better at rolling. Roll cooldown reduced by 0.2",
+        "Another gift! From granny! You curl some dumbells, making you better at rolling. Roll Speed reduced by 0.2",
       cost: 45,
       requires: "two-leaf-clover",
     },
@@ -200,7 +201,7 @@ RG.changelog = [
       cost: 50,
       growth: 1.55,
       max: 10,
-      effect: (stats) => `${stats.roll_time.toFixed(1)}s roll cooldown`,
+      effect: (stats) => `${stats.roll_time.toFixed(1)}s Roll Speed`,
     },
     {
       id: "point-farm",
@@ -209,7 +210,7 @@ RG.changelog = [
         "Set up little stick-box traps for points, increasing your point multiplier by +.1",
       cost: 40,
       growth: 1.45,
-      max: 25,
+      max: 10,
       effect: (stats) =>
         `${RG.format(stats.point_multiplier)}× point multiplier`,
     },
@@ -219,7 +220,7 @@ RG.changelog = [
       description: "Lift a normal clover, increasing total luck by +.5",
       cost: 90,
       growth: 1.65,
-      max: 25,
+      max: 10,
       effect: (stats) => `${RG.format(stats.luck)} total luck`,
     },
     {
@@ -244,6 +245,31 @@ RG.changelog = [
       effect: (stats) =>
         `+${RG.format(stats.discovery_points)} discovery points`,
       requires: "two-leaf-clover",
+    },
+    {
+      id: "achievement-boost",
+      name: "Achievement Boost",
+      description:
+        "Installs an Achievement Juice Drinker in your Roll Machine, boosting passive point generation by a smaller amount depending on how many achievements you have.",
+      cost: 100,
+      growth: 1.6,
+      max: 10,
+      requiresAchievement: "maximum-power",
+      effect: (stats) => `+${RG.format(stats.achievement_pps)} Points / second`,
+    },
+  ];
+  RG.treasureRarities = ["common", "uncommon", "rare", "epic", "legendary"];
+  RG.treasures = [
+    {
+      id: "star-engine",
+      name: "Star Engine",
+      rarity: "common",
+      description:
+        "An engine that runs on Achievement Juice. Boosts your point gain through rolling by total achievements.",
+      image: "assets/star-engine.png",
+      price: 250,
+      achievementBonus: 0.03,
+      shelf: { x: 0.39, bottom: 0.49, width: 0.15 },
     },
   ];
   RG.achievements = [
@@ -326,7 +352,114 @@ RG.changelog = [
       check: (engine) => engine.state.best !== null && engine.state.best >= 8,
       grade: "F",
     },
+    {
+      id: "baby-beefer",
+      number: "008",
+      name: "We <3 Baby Beefer",
+      faceHeart: true,
+      description: "I. FUCKING. LOVE. BABY. BEEFER!",
+      requirementText: "",
+      rewardText: "+1 Beef",
+      reward: { beef: 1 },
+      check: (engine) => engine.state.flags.beeferClicked,
+      grade: "A",
+    },
+    {
+      id: "daily-paper",
+      number: "009",
+      name: "Its my daily paper!",
+      description: "Check out the Changelog.",
+      requirementText: "",
+      grade: "F",
+      rewardText: "+25 Points",
+      reward: { points: 25 },
+      check: (engine) => engine.state.flags.readChangelog,
+    },
+    {
+      id: "lets-roll",
+      number: "010",
+      name: "Lets Roll.",
+      description: "Use the Remote Cont-Roll",
+      requirementText: "",
+      grade: "D",
+      rewardText: "+100 Points",
+      reward: { points: 100 },
+      check: (engine) => engine.state.flags.usedRemote,
+    },
+    {
+      id: "maximum-power",
+      number: "011",
+      name: "Maximum Power!",
+      description: "Max out a repeatable upgrade.",
+      requirementText: "",
+      grade: "D",
+      rewardText: "Unlocks the Achievement Boost upgrade.",
+      reward: {},
+      check: (engine) =>
+        RG.repeatables.some(
+          (item) =>
+            item.max !== null && engine.state.levels[item.id] >= item.max,
+        ),
+    },
+    {
+      id: "fancypants",
+      number: "012",
+      name: "Fancypants",
+      description: "Roll a rarity with odds of 1 in 100 or more.",
+      requirementText: "",
+      grade: "D",
+      rewardText: "+1 Luck",
+      reward: { luck: 1 },
+      check: (engine) => engine.state.maxRolledOdds >= 100,
+    },
+    {
+      id: "finally-passive",
+      number: "013",
+      name: "Finally Passive",
+      description: "Get 10 points per second.",
+      requirementText: "",
+      grade: "F",
+      rewardText: "+5 PPS",
+      reward: { passive_pps: 5 },
+      check: (engine) => engine.stats.passive_pps >= 10,
+    },
   ];
+  RG.achievements.push({
+    id: "be-patient",
+    number: "014",
+    name: "BE PATIENT!!!!!!",
+    description: "Spam the roll button.",
+    requirementText: "",
+    grade: "F",
+    rewardText: "",
+    reward: {},
+    check: (engine) => engine.state.flags.spammedRoll,
+  });
+  RG.shadowQuotes = [
+    "Have you ever seen Click by Adam Sandler?",
+    "Family Guy is my favorite show.",
+    "Also try Prestige Tree!",
+    "It's rude to speak about somebody who's listening.",
+    "Do you wanna be a BIG SHOT?",
+    "This is like, the 3rd deltarune reference.",
+    "Its just one of those days where you dont wanna wake up everything is fucked everybody sucks you dont really know why but you wanna ju",
+    "Please finish the ArcTree!!!",
+    "Trans Rights!",
+    "Thank you Oversight team!",
+    "I love baby beefer!",
+    "How is (City/Town)?",
+    "BOO!",
+    "Are you scared of me?",
+    "I love galaxy.click!",
+    "Happy halloween!",
+    "Do you ever feel like you're being watched?",
+    "What's your name, kid?",
+    "Hello, (name).",
+    "Living it up in (city/town name), huh, (your name)?",
+    "Go ahead. give me your credit card, I dare you.",
+  ];
+  RG.marketRefusalChance = 0.05;
+  RG.shadowPoorQuote = "Come back when you're a little, mmmm, RICHER!";
   RG.sidebarStats = [
     {
       id: "luck",
@@ -336,6 +469,14 @@ RG.changelog = [
       value: (stats) => RG.format(stats.luck),
       tooltip: (stats) => `Total luck: ×${RG.format(1 + stats.luck)}`,
       unlocked: (engine) => engine.stats.luck > 0,
+    },
+    {
+      id: "beef",
+      name: "Beef",
+      icon: () => RG.BeeferOrb(),
+      color: "#b78d6c",
+      value: (stats) => RG.format(stats.beef),
+      unlocked: (engine) => engine.stats.beef > 0,
     },
   ];
   const standardFormat = new Intl.NumberFormat("en", {
@@ -347,7 +488,7 @@ RG.changelog = [
   });
   RG.format = (number) =>
     (number >= 1000000 ? compactFormat : standardFormat).format(number);
-  RG.oddsText = (chance) => `1 in ${RG.format(Math.round(1 / chance))}`;
+  RG.oddsText = (chance) => `1 in ${RG.format(1 / chance)}`;
   RG.rollTickTimes = (duration) => {
     const count = Math.max(3, Math.min(32, Math.floor(duration / 80)));
     return Array.from(
