@@ -11,20 +11,31 @@
       ),
     );
     info.append(RG.el("p", "", item.description));
-    info.append(
-      RG.el(
-        "p",
-        "",
-        `Passive: +${RG.format(item.achievementBonus * 100)}% rolling Points per earned achievement.`,
-      ),
-    );
-    info.append(
-      RG.el(
-        "div",
-        "",
-        `${engine.state.achievements.length} achievements: +${RG.format(engine.state.achievements.length * item.achievementBonus * 100)}% rolling Points.`,
-      ),
-    );
+    if (item.passiveMultiplier)
+      info.append(
+        RG.el(
+          "p",
+          "",
+          `Passive: ×${item.passiveMultiplier} passive Point income.`,
+        ),
+      );
+    if (item.achievementBonus) {
+      const power = engine.state.achievements.includes("tier-up") ? 1.03 : 1;
+      info.append(
+        RG.el(
+          "p",
+          "",
+          `Passive: +${RG.format(item.achievementBonus * power * 100)}% rolling Points per earned achievement.`,
+        ),
+      );
+      info.append(
+        RG.el(
+          "div",
+          "",
+          `${engine.state.achievements.length} achievements: +${RG.format(engine.state.achievements.length * item.achievementBonus * power * 100)}% rolling Points.`,
+        ),
+      );
+    }
     info.append(
       RG.el(
         "div",
@@ -110,6 +121,8 @@
     function closeShop() {
       if (closed) return;
       closed = true;
+      engine.recordAction("market-closed");
+      onPurchase();
       closing = false;
       stopDialogue();
       scene.inert = true;
@@ -308,6 +321,16 @@
       stop() {
         stopDialogue();
         if (closing) closeShop();
+      },
+      reset() {
+        closed = false;
+        closing = false;
+        stopDialogue();
+        scene.inert = false;
+        door.hidden = true;
+        door.classList.remove("closed");
+        soldThisVisit.clear();
+        update();
       },
       enter() {
         soldThisVisit.clear();

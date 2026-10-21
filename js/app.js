@@ -10,6 +10,8 @@ RG.startApp = () => {
     location.protocol === "file:" ||
     ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
   let stopped = false;
+  let prestiging = false,
+    autoTimer = 0;
   let shopCategory = "main",
     collectionCategory = "rarities";
   let tab = "roll",
@@ -20,7 +22,9 @@ RG.startApp = () => {
     started = 0,
     activeRoll = null,
     starClicks = 0,
-    visibleRarity = null;
+    visibleRarity = null,
+    visibleGrade = null,
+    visibleFinalOdds = null;
   const beep = new Audio("assets/lichess-beep.mp3");
   beep.volume = 0.6;
   const meow = new Audio("assets/baby-beefer-meow.mp3");
@@ -44,7 +48,13 @@ RG.startApp = () => {
   const upgradesTab = RG.Button("???", () => setTab("upgrades"), "nav-button");
   const historyTab = RG.Button("???", () => setTab("history"), "nav-button");
   historyTab.disabled = true;
-  nav.append(rollTab, collectionTab, upgradesTab, historyTab);
+  const youGroup = E("div", "you-category");
+  youGroup.hidden = true;
+  const bodyTab = RG.Button("Body", () => setTab("body"), "nav-button");
+  const statsTab = RG.Button("Stats", () => {}, "nav-button");
+  statsTab.disabled = true;
+  youGroup.append(E("h3", "", "You"), bodyTab, statsTab);
+  nav.append(rollTab, collectionTab, upgradesTab, historyTab, youGroup);
   const sidebarFooter = E("div", "sidebar-footer");
   const sound = RG.Button(
     "",
@@ -156,7 +166,7 @@ RG.startApp = () => {
     ),
     multiplierStat = RG.Stat(
       "Point multiplier",
-      "Multiplies Points earned from rolling. Includes upgrades, achievements and passive treasures. Discovery bonuses and passive Points are separate. Purchases affect the next roll.",
+      "Multiplies Points earned from rolling. Includes upgrades, achievements and passive treasures. Rarity Grades add their own bonus afterward. Discovery bonuses and passive Points are separate. Purchases affect the next roll.",
     ),
     totalStat = RG.Stat(
       "Total rolls",
@@ -165,12 +175,12 @@ RG.startApp = () => {
   const discoveryStat = RG.Stat(
       "Discovery points",
       () =>
-        `Extra Points for finding a rarity for the first time. Flat bonus: ${RG.format(engine.stats.discovery_points)}. ${engine.owns("seal-of-approval") ? "Seal Of Approval also adds that rarity's base Point value. " : ""}Duplicates get no discovery bonus. This bonus is not multiplied by your Point multiplier.`,
+        `Extra Points for finding a rarity for the first time. Flat bonus: ${RG.format(engine.stats.discovery_points)}. ${engine.owns("seal-of-approval") ? "Seal Of Approval also adds that rarity's base Point value. " : ""}Adventurer also rewards the first copy of each new rarity/Grade combination; known combinations get no discovery bonus. This bonus is not multiplied by your Point multiplier.`,
     ),
     passiveStat = RG.Stat(
       "Passive Points",
       () =>
-        `Points earned automatically each second, including time away. Achievement Boost currently adds ${RG.format(engine.stats.achievement_pps)} PPS from your ${engine.state.achievements.length} achievements. Finally Passive adds 5 PPS once earned.`,
+        `Points earned automatically each second, including time away. Achievement Boost currently adds ${RG.format(engine.stats.achievement_pps)} PPS from your ${engine.state.achievements.length} achievements. Finally Passive adds 5 base PPS once earned. Factory Maintenance adds ${RG.format(engine.stats.maintenance_pps)} and Factory Annex adds ${engine.owns("factory-annex") ? 5 : 0} base PPS. ${engine.ownsTreasure("shadow-totem") ? "Shadow Totem doubles the whole base rate." : ""}`,
     );
   rollInfo.append(
     cooldownStat.node,
@@ -179,7 +189,82 @@ RG.startApp = () => {
     discoveryStat.node,
     passiveStat.node,
   );
-  controls.append(progress, rollButton, rollInfo);
+  const autoRollButton = RG.Button(
+    "Auto Roll: Off",
+    () => {
+      if (engine.setAutoRoll(!engine.state.autoRoll)) {
+        update();
+        scheduleAutoRoll();
+      }
+    },
+    "auto-roll-button",
+  );
+  const autoRollSettings = RG.Button(
+    "⚙",
+    () => {
+      autoRollMenu.hidden = !autoRollMenu.hidden;
+      autoRollSettings.setAttribute("aria-expanded", String(!autoRollMenu.hidden));
+    },
+    "auto-roll-settings",
+  );
+  autoRollSettings.setAttribute("aria-label", "Auto Roll settings");
+  autoRollSettings.setAttribute("aria-expanded", "false");
+  const autoRollMenu = E("div", "auto-roll-menu");
+  autoRollMenu.hidden = true;
+  const pauseOptions = [
+    ["newRarity", "Pause on new rarity"],
+    ["newGrade", "Pause on new Grade"],
+    ["luckyDie", "Pause when a Lucky Die drops"],
+  ].map(([key, text]) => {
+    const label = E("label"),
+      box = E("input");
+    box.type = "checkbox";
+    box.addEventListener("change", () =>
+      engine.setAutoRollPause(key, box.checked),
+    );
+    label.append(box, document.createTextNode(text));
+    autoRollMenu.append(label);
+    return { key, box };
+  });
+  const autoRollRow = E("div", "auto-roll-row");
+  autoRollRow.append(autoRollButton, autoRollSettings, autoRollMenu);
+  autoRollRow.hidden = true;
+  document.addEventListener("pointerdown", (event) => {
+    if (!autoRollMenu.hidden && !autoRollRow.contains(event.target)) {
+      autoRollMenu.hidden = true;
+      autoRollSettings.setAttribute("aria-expanded", "false");
+    }
+  });
+  const prestigeButton = RG.Button(
+    "PRESTIGE",
+    () => prestigeDialog.open(),
+    "prestige-button",
+  );
+  prestigeButton.hidden = true;
+  controls.append(
+    progress,
+    rollButton,
+    autoRollRow,
+    rollInfo,
+    prestigeButton,
+  );
+  const levelBlock = E("div", "level-block");
+  levelBlock.hidden = true;
+  const levelLabel = E("span", "level-label"),
+    realmLabel = E("span", "realm-label"),
+    levelBar = E("div", "level-bar"),
+    levelFill = E("div", "level-fill"),
+    levelXp = E("span", "level-xp");
+  levelBar.setAttribute("role", "progressbar");
+  levelBar.setAttribute("aria-label", "Experience");
+  levelBar.setAttribute("aria-valuemin", "0");
+  levelBar.append(levelFill, levelXp);
+  const levelHeading = E("div", "level-heading");
+  levelHeading.append(levelLabel, realmLabel);
+  levelBlock.append(levelHeading, levelBar);
+  header.append(levelBlock);
+  let shownLevel = null,
+    shownRealm = null;
   rollView.append(stage, controls);
   const collection = E("section", "collection-view");
   collection.hidden = true;
@@ -207,6 +292,7 @@ RG.startApp = () => {
   sortSelect.id = "collection-sort";
   sortLabel.htmlFor = sortSelect.id;
   for (const [value, label] of [
+    ["unsorted", "Unsorted"],
     ["rarity", "Rarity: low to high"],
     ["rarity-desc", "Rarity: high to low"],
     ["name", "Name"],
@@ -220,8 +306,11 @@ RG.startApp = () => {
     if (engine.setCollectionSort(sortSelect.value)) update();
   });
   sortControls.append(sortLabel, sortSelect);
+  const foundCounter = E("span", "collection-found");
+  const collectionBar = E("div", "collection-bar");
+  collectionBar.append(foundCounter, sortControls);
   const grid = E("div", "rarity-list");
-  rarityCollection.append(sortControls, grid);
+  rarityCollection.append(collectionBar, grid);
   collection.append(collectionNav, rarityCollection, treasureField.node);
   function setCollectionCategory(category) {
     collectionCategory = category;
@@ -246,13 +335,30 @@ RG.startApp = () => {
     const count = E("span", "rarity-count");
     const odds = E("span", "rarity-odds");
     const payout = E("span", "rarity-payout");
-    const stamp = E("img", "wax-stamp");
-    stamp.src = "assets/wax-seal.png";
-    stamp.alt = "Seal of Approval";
-    stamp.hidden = true;
-    row.append(label, odds, payout, count, stamp);
+    const badges = RG.CollectionBadges();
+    const gradeDetails = E("details", "rarity-grade-details");
+    gradeDetails.hidden = true;
+    gradeDetails.append(E("summary", "", "Grades"));
+    const variants = E("div", "rarity-grade-variants");
+    gradeDetails.append(variants);
+    let gradeViews = [];
+    gradeDetails.addEventListener("toggle", () => {
+      if (gradeDetails.open) update();
+    });
+    row.append(label, odds, payout, count, ...badges.nodes, gradeDetails);
     grid.append(row);
-    return { id: rarity.id, row, label, count, odds, payout, stamp };
+    return {
+      id: rarity.id,
+      row,
+      label,
+      count,
+      odds,
+      payout,
+      badges,
+      gradeDetails,
+      variants,
+      gradeViews,
+    };
   });
   const upgradeView = E("section", "upgrade-view");
   upgradeView.hidden = true;
@@ -292,20 +398,40 @@ RG.startApp = () => {
     );
   categoryNav.append(mainCategory, repeatableCategory, marketCategory);
   const upgradeList = E("div", "upgrade-list");
-  const upgradeRows = RG.upgrades.map((upgrade) =>
-    RG.Upgrade(upgrade, engine, (id) => {
+  const upgradeRows = RG.upgrades.map((upgrade) => ({
+    ...RG.Upgrade(upgrade, engine, (id) => {
       if (engine.buy(id)) {
         tick(true);
         update();
       }
     }),
-  );
-  upgradeRows.forEach((view) => upgradeList.append(view.node));
+    category: upgrade.category || "main",
+  }));
+  const upgradeGroups = ["main", "badges", "collection"].map((category) => {
+    const node = E("section", "upgrade-group");
+    const title =
+      category === "main"
+        ? "Main"
+        : category === "badges"
+          ? "Badges"
+          : "Collection";
+    node.setAttribute("aria-label", `${title} upgrades`);
+    node.append(E("h3", "upgrade-divider", title));
+    const rows = upgradeRows.filter((view) => view.category === category);
+    rows.forEach((view) => node.append(view.node));
+    upgradeList.append(node);
+    return { node, rows };
+  });
   const repeatableList = E("div", "upgrade-list repeatable-grid");
   repeatableList.hidden = true;
   const repeatableRows = RG.repeatables.map((upgrade) =>
     RG.RepeatableUpgrade(upgrade, engine, (id) => {
       if (!engine.buyRepeatable(id)) return false;
+      tick(true);
+      update();
+      return true;
+    }, (id) => {
+      if (!engine.buyRepeatableMax(id)) return false;
       tick(true);
       update();
       return true;
@@ -316,7 +442,11 @@ RG.startApp = () => {
   marketFlash.setAttribute("aria-hidden", "true");
   const marketVignette = E("div", "market-vignette");
   marketVignette.setAttribute("aria-hidden", "true");
-  const nightMarket = RG.NightMarket(engine, () => {
+  const nightMarket = RG.NightMarket(engine, (purchase = true) => {
+    if (!purchase) {
+      update();
+      return;
+    }
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!reduced)
       shell.animate(
@@ -498,6 +628,14 @@ RG.startApp = () => {
     RG.Button("Add level", () => setLevel(false)),
     RG.Button("Max level", () => setLevel(true)),
   );
+  progressionTools.append(
+    RG.Button("Grant Legendary", () =>
+      adminChange(() => {
+        engine.state.counts[RG.prestigeRarity]++;
+        engine.state.best = RG.prestigeRarity;
+      }),
+    ),
+  );
   const marketTools = adminSection("Night Market");
   marketTools.append(
     RG.Button("Unlock Night Market", () =>
@@ -545,16 +683,35 @@ RG.startApp = () => {
       nightMarket.talk(Number(quotes.value));
     }),
   );
+  marketTools.append(
+    RG.Button("Spawn Lucky Die", () => {
+      if (!engine.nightMarketUnlocked || engine.stats.temporary_luck) return;
+      engine.luckyDieOffer = {
+        amount: 1,
+        expiresAt: Date.now() + RG.luckyDie.fallDuration,
+      };
+      admin.close();
+      update();
+    }),
+  );
   const achievementTools = adminSection("Achievements");
   const achievementSelect = adminSelect(
     RG.achievements.map((item) => [item.id, `${item.number}: ${item.name}`]),
     "Achievement",
   );
+  const tierSelect = adminSelect(
+    RG.achievementTiers.map((tier) => [tier.id, tier.name]),
+    "Achievement tier preview",
+  );
   achievementTools.append(
     achievementSelect,
+    tierSelect,
     RG.Button("Preview toast", () => {
       toasts.show(
-        RG.achievements.find((item) => item.id === achievementSelect.value),
+        engine.achievementView(
+          RG.achievements.find((item) => item.id === achievementSelect.value),
+          Number(tierSelect.value),
+        ),
       );
     }),
     RG.Button("Grant achievement", () => {
@@ -578,6 +735,7 @@ RG.startApp = () => {
       }
     });
   admin.addEventListener("close", () => toasts.mount(root));
+  const confirmDialog = RG.ConfirmDialog();
   const saveDialog = E("dialog", "settings-dialog");
   saveDialog.setAttribute("aria-label", "Settings");
   const saveHeading = E("div", "admin-heading");
@@ -600,9 +758,9 @@ RG.startApp = () => {
       const parsed = JSON.parse(await file.text());
       engine.validate(parsed);
       if (
-        !confirm(
+        !(await confirmDialog.ask(
           "Replace your progress with this save? Your current save will be downloaded first.",
-        )
+        ))
       )
         return;
       exportProgress();
@@ -642,11 +800,11 @@ RG.startApp = () => {
     setShopCategory("main");
     setTab("roll");
   }
-  const resetButton = RG.Button("Reset progress", () => {
+  const resetButton = RG.Button("Reset progress", async () => {
     if (
-      !confirm(
+      !(await confirmDialog.ask(
         "Reset progress in this browser? A recovery backup will be kept.",
-      )
+      ))
     )
       return;
     try {
@@ -659,8 +817,13 @@ RG.startApp = () => {
       saveFeedback.textContent = error.message;
     }
   });
-  const restoreButton = RG.Button("Restore before reset", () => {
-    if (!confirm("Restore the progress saved before your last reset?")) return;
+  const restoreButton = RG.Button("Restore before reset", async () => {
+    if (
+      !(await confirmDialog.ask(
+        "Restore the progress saved before your last reset?",
+      ))
+    )
+      return;
     try {
       engine.restoreResetBackup();
       clearReveal();
@@ -679,8 +842,18 @@ RG.startApp = () => {
     importFile,
     saveFeedback,
   );
+  const bodyTree = RG.BodyTree(engine, {
+    onPrestige: () => performPrestige(),
+    onChange: () => update(),
+  });
+  const prestigeDialog = RG.PrestigeDialog(engine, performPrestige);
+  prestigeDialog.node.addEventListener("close", scheduleAutoRoll);
+  const prestigeFlash = E("div", "prestige-flash");
+  prestigeFlash.hidden = true;
+  prestigeFlash.setAttribute("aria-hidden", "true");
   main.append(
     header,
+    bodyTree.node,
     rollView,
     collection,
     upgradeView,
@@ -712,11 +885,15 @@ RG.startApp = () => {
     changelog,
     marketFlash,
     marketVignette,
+    prestigeDialog.node,
+    prestigeFlash,
+    confirmDialog.node,
   );
   function setTab(value) {
     if (value === "upgrades" && !engine.state.upgradesUnlocked) return;
     if (value === "achievements" && !engine.achievementsUnlocked) return;
     if (value === "history" && !engine.owns("logbook")) return;
+    if (value === "body" && !engine.state.meta.prestiges) return;
     if (value !== "upgrades" && shopCategory === "market")
       setShopCategory("main");
     tab = value;
@@ -725,10 +902,13 @@ RG.startApp = () => {
     upgradeView.hidden = value !== "upgrades";
     achievementsView.hidden = value !== "achievements";
     historyView.hidden = value !== "history";
+    bodyTree.node.hidden = value !== "body";
     treasureField.activate(
       value === "collection" && collectionCategory === "treasures",
     );
     RG.hideTooltips();
+    remoteRoll.hidden = !engine.owns("remote-cont-roll") || value === "roll";
+    levelBlock.hidden = !engine.levelsUnlocked || value !== "roll";
     achievementsButton.classList.toggle("active", value === "achievements");
     achievementsButton.setAttribute(
       "aria-pressed",
@@ -739,6 +919,7 @@ RG.startApp = () => {
       ["collection", collectionTab],
       ["upgrades", upgradesTab],
       ["history", historyTab],
+      ["body", bodyTab],
     ]) {
       button.classList.toggle("active", name === value);
       button.setAttribute("aria-current", name === value ? "page" : "false");
@@ -763,7 +944,13 @@ RG.startApp = () => {
         .catch(() => {
           beep.muted = false;
         });
-    return ready;
+    return new Promise((resolve) => {
+      const timeout = setTimeout(resolve, 150);
+      ready.then(() => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
   }
   const noiseSources = new Set();
   function stopSound() {
@@ -819,21 +1006,33 @@ RG.startApp = () => {
       volume.disconnect();
     };
   }
-  function showRarity(id) {
+  function showRarity(id, grade = null, odds = null) {
     visibleRarity = id;
-    display.replaceChildren(RG.RarityText(id, "hero-rarity"));
+    visibleGrade = grade;
+    visibleFinalOdds = odds;
+    display.replaceChildren(RG.RarityText(id, "hero-rarity", grade));
     display.tabIndex = 0;
     rarityOdds.textContent = RG.oddsText(
-      engine.pendingRoll?.chances[id] ?? engine.chances[id],
+      odds === null
+        ? engine.resultChance(
+            id,
+            grade,
+            engine.pendingRoll?.chances,
+            engine.pendingRoll?.gradeChances,
+          )
+        : 1 / odds,
     );
     stage.style.setProperty("--ray-color", RG.rarities[id].color);
     if (activeRoll?.remote)
       miniPreview.replaceChildren(
         E("span", "mini-roll-caption", "Rolling"),
-        RG.RarityText(id, "mini-rarity"),
+        RG.RarityText(id, "mini-rarity", grade),
       );
   }
-  async function startRoll(remote = false) {
+  async function startRoll(remote = false, automated = false) {
+    if (prestiging) return;
+    clearTimeout(autoTimer);
+    if (!automated && engine.rolling) unlockAudio();
     const roll = engine.begin();
     if (!roll) {
       update();
@@ -841,6 +1040,8 @@ RG.startApp = () => {
     }
     if (remote) engine.recordAction("remote-roll");
     activeRoll = roll;
+    activeRoll.phase = "rarity";
+    stage.dataset.rollPhase = "rarity";
     activeRoll.remote = remote;
     miniPreview.getAnimations().forEach((animation) => animation.cancel());
     miniPreview.hidden = !remote;
@@ -857,11 +1058,12 @@ RG.startApp = () => {
     }
     buttonText.textContent = "Rolling";
     update();
-    await unlockAudio();
-    if (stopped || activeRoll !== roll) return;
+    if (!automated || navigator.userActivation?.hasBeenActive)
+      await unlockAudio();
+    if (stopped || prestiging || activeRoll !== roll) return;
     started = performance.now();
     nextTick = 0;
-    activeRoll.tickTimes = RG.rollTickTimes(activeRoll.duration);
+    activeRoll.tickTimes = RG.rollTickTimes(activeRoll.rarityDuration);
     newRarityLabel.getAnimations().forEach((animation) => animation.cancel());
     newRarityLabel.hidden = true;
     stage.classList.remove("revealed");
@@ -873,39 +1075,86 @@ RG.startApp = () => {
   }
   function animate(now) {
     if (!activeRoll) return;
-    const elapsed = now - started,
+    const elapsed = now - started;
+    let fraction;
+    if (activeRoll.phase === "grade") {
+      const gradeElapsed = now - activeRoll.gradeStartedAt;
+      fraction = Math.min(
+        1,
+        (activeRoll.rarityDuration + gradeElapsed) / activeRoll.duration,
+      );
+      if (gradeElapsed >= activeRoll.gradeDuration) {
+        finish();
+        return;
+      }
+      if (gradeElapsed >= activeRoll.nextGradeTick) {
+        activeRoll.nextGradeTick = gradeElapsed + 80;
+        let preview = engine.sampleGrade(
+          Math.random,
+          engine.pendingRoll.gradeChances,
+        );
+        for (
+          let attempt = 0;
+          preview === visibleGrade && attempt < 5;
+          attempt++
+        )
+          preview = engine.sampleGrade(
+            Math.random,
+            engine.pendingRoll.gradeChances,
+          );
+        if (preview !== visibleGrade) {
+          showRarity(activeRoll.id, preview);
+          tick();
+        }
+      }
+    } else {
       fraction = Math.min(1, elapsed / activeRoll.duration);
-    progressFill.style.width = `${fraction * 100}%`;
-    progress.setAttribute("aria-valuenow", String(Math.round(fraction * 100)));
-    if (fraction >= 1) {
-      finish();
-      return;
-    }
-    if (
-      nextTick < activeRoll.tickTimes.length &&
-      elapsed >= activeRoll.tickTimes[nextTick]
-    ) {
-      while (
+      if (elapsed >= activeRoll.rarityDuration) {
+        if (!activeRoll.gradeDuration) {
+          finish();
+          return;
+        }
+        if (engine.beginGrade() !== null) {
+          activeRoll.phase = "grade";
+          activeRoll.gradeStartedAt = now;
+          activeRoll.nextGradeTick = 0;
+          stage.dataset.rollPhase = "grade";
+          showRarity(activeRoll.id);
+        }
+      } else if (
         nextTick < activeRoll.tickTimes.length &&
         elapsed >= activeRoll.tickTimes[nextTick]
-      )
-        nextTick++;
-      showRarity(engine.samplePreview(visibleRarity));
-      tick();
+      ) {
+        while (
+          nextTick < activeRoll.tickTimes.length &&
+          elapsed >= activeRoll.tickTimes[nextTick]
+        )
+          nextTick++;
+        showRarity(engine.samplePreview(visibleRarity));
+        tick();
+      }
     }
+    progressFill.style.width = `${fraction * 100}%`;
+    progress.setAttribute("aria-valuenow", String(Math.round(fraction * 100)));
     frame = requestAnimationFrame(animate);
   }
   function finish() {
     const remote = activeRoll.remote;
     const last = engine.complete(activeRoll.id);
+    if (!last) {
+      frame = requestAnimationFrame(animate);
+      return;
+    }
     activeRoll = null;
-    if (!last) return;
-    showRarity(last.id);
+    stage.dataset.rollPhase = "complete";
+    progressFill.style.width = "100%";
+    progress.setAttribute("aria-valuenow", "100");
+    showRarity(last.id, last.grade, last.odds);
     stage.classList.remove("rolling");
     stage.classList.add("revealed");
     if (remote) {
       miniPreview.replaceChildren(
-        RG.RarityText(last.id, "mini-rarity"),
+        RG.RarityText(last.id, "mini-rarity", last.grade),
         E("span", "mini-roll-caption", `+${RG.format(last.amount)} Points`),
       );
       const fade = miniPreview.animate([{ opacity: 1 }, { opacity: 0 }], {
@@ -946,18 +1195,171 @@ RG.startApp = () => {
         newRarityLabel.hidden = true;
       };
     }
-    announcement.textContent = `${RG.rarities[last.id].name}. ${last.amount} Points earned.${last.isNew ? " New rarity!" : ""}${last.isBest ? " New highest rarity." : ""}`;
+    announcement.textContent = `${RG.rarities[last.id].name}${last.grade === null ? "" : `, Grade ${RG.rarityGrades[last.grade].name}`}. ${last.amount} Points earned.${last.isNew ? " New rarity!" : ""}${last.isBest ? " New highest rarity." : ""}`;
     if (engine.state.sound) {
       beep.muted = false;
       beep.currentTime = 0;
       beep.play().catch(() => {});
     }
     buttonText.textContent = "Roll Rarity";
+    if (remote && rollView.hidden && !inView(miniPreview))
+      toasts.message(
+        RG.RarityText(last.id, "", last.grade),
+        E("span", "message-toast-points", `+${RG.format(last.amount)} Points`),
+      );
+    const pause = engine.state.autoRollPause;
+    const reason = !engine.state.autoRoll
+      ? null
+      : pause.newRarity && last.isNew
+        ? "new rarity"
+        : pause.newGrade && last.newGrade
+          ? "new Grade"
+          : pause.luckyDie && engine.luckyDieOffer
+            ? "Lucky Die"
+            : null;
+    if (reason && engine.setAutoRoll(false))
+      toasts.message(E("span", "", `Auto Roll paused: ${reason}`));
     update();
+    scheduleAutoRoll();
+  }
+  function inView(node) {
+    if (node.hidden) return false;
+    const rect = node.getBoundingClientRect();
+    return rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
+  }
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.code !== "Space" ||
+      event.repeat ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      !engine.owns("remote-control") ||
+      prestiging ||
+      document.querySelector("dialog[open]") ||
+      event.target.closest?.("input, textarea, select, [contenteditable]")
+    )
+      return;
+    event.preventDefault();
+    if (engine.rolling) return;
+    startRoll(tab !== "roll");
+  });
+  function scheduleAutoRoll() {
+    clearTimeout(autoTimer);
+    if (
+      stopped ||
+      prestiging ||
+      document.hidden ||
+      prestigeDialog.node.open ||
+      !engine.state.autoRoll ||
+      !engine.owns("auto-roll") ||
+      engine.rolling
+    )
+      return;
+    autoTimer = setTimeout(() => {
+      if (!document.hidden && !prestiging && !prestigeDialog.node.open)
+        startRoll(false, true);
+    }, 120);
+  }
+  async function performPrestige() {
+    if (prestiging) return;
+    if (!engine.prestige()) {
+      saveStatus.textContent = engine.saveMessage;
+      return;
+    }
+    prestiging = true;
+    clearTimeout(autoTimer);
+    cancelAnimationFrame(frame);
+    activeRoll = null;
+    stopSound();
+    prestigeDialog.node.close();
+    toasts.node.replaceChildren();
+    if (toasts.node.matches(":popover-open")) toasts.node.hidePopover();
+    nightMarket.reset();
+    luckyDie.stop();
+    RG.hideTooltips();
+    if (admin.open) admin.close();
+    if (saveDialog.open) saveDialog.close();
+    root.inert = true;
+    shell.inert = true;
+    prestigeFlash.hidden = false;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduced)
+      shell.animate(
+        [
+          { transform: "translate(0)" },
+          { transform: "translate(-9px,5px)" },
+          { transform: "translate(8px,-6px)" },
+          { transform: "translate(-5px,3px)" },
+          { transform: "translate(0)" },
+        ],
+        { duration: 650 },
+      );
+    await prestigeFlash
+      .animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: reduced ? 160 : 2200,
+        fill: "forwards",
+        easing: "ease-in",
+      })
+      .finished.catch(() => {});
+    if (stopped) return;
+    visibleRarity = visibleGrade = visibleFinalOdds = null;
+    display.replaceChildren();
+    display.tabIndex = -1;
+    rarityOdds.textContent = "";
+    stage.classList.remove("rolling", "revealed");
+    stage.removeAttribute("data-roll-phase");
+    miniPreview.hidden = true;
+    buttonText.textContent = "Roll Rarity";
+    bodyTree.reset();
+    setTab("body");
+    update();
+    await prestigeFlash
+      .animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: reduced ? 160 : 900,
+        fill: "forwards",
+      })
+      .finished.catch(() => {});
+    prestigeFlash.hidden = true;
+    root.inert = false;
+    shell.inert = false;
+    prestiging = false;
+    bodyTab.focus();
   }
   function update() {
     const state = engine.state,
       values = engine.stats;
+    luckyDie.update();
+    bodyTree.update();
+    youGroup.hidden = !state.meta.prestiges;
+    const levels = engine.levelsUnlocked,
+      info = engine.levelInfo(),
+      realm = levels ? engine.realm : RG.realms[0];
+    levelBlock.hidden = !levels || tab !== "roll";
+    levelXp.textContent = `${RG.format(info.xp)} / ${RG.format(info.next)} XP`;
+    levelLabel.textContent = `Level ${info.level}`;
+    realmLabel.textContent = realm.name;
+    levelFill.style.width = `${(info.xp / info.next) * 100}%`;
+    levelBar.setAttribute("aria-valuemax", String(info.next));
+    levelBar.setAttribute("aria-valuenow", String(info.xp));
+    document.documentElement.dataset.realm = realm.id;
+    if (levels && shownLevel !== null && info.level > shownLevel)
+      toasts.message(E("span", "", `Level ${info.level}`));
+    if (levels && shownRealm !== null && realm.id !== shownRealm)
+      toasts.message(E("span", "", `Entered ${realm.name}`));
+    shownLevel = info.level;
+    shownRealm = realm.id;
+    autoRollRow.hidden = !engine.owns("auto-roll");
+    pauseOptions.forEach(({ key, box }) => {
+      box.checked = state.autoRollPause[key];
+    });
+    autoRollButton.textContent = state.autoRoll
+      ? "Auto Roll: On"
+      : "Auto Roll: Off";
+    autoRollButton.setAttribute("aria-pressed", String(state.autoRoll));
+    prestigeButton.hidden = !engine.canPrestige;
+    if (engine.canPrestige && !state.flags.legendaryDialogueSeen && !prestiging)
+      prestigeDialog.open();
     document.title = `Rarity - ${state.best === null ? "???" : RG.rarities[state.best].name}`;
     const showOdds = engine.owns("lucky-eye"),
       showQuantity = engine.owns("inventory");
@@ -965,19 +1367,33 @@ RG.startApp = () => {
     sidebarStatRows.forEach((view) => view.update(engine));
     if (state.best === null) best.replaceChildren(E("span", "no-best", "???"));
     else {
-      best.replaceChildren(RG.RarityText(state.best));
+      best.replaceChildren(
+        RG.RarityText(state.best, "", engine.bestGrade(state.best)),
+      );
       if (showOdds)
         best.append(
-          E("span", "best-odds", RG.oddsText(engine.chances[state.best])),
+          E(
+            "span",
+            "best-odds",
+            RG.oddsText(
+              engine.resultChance(state.best, engine.bestGrade(state.best)),
+            ),
+          ),
         );
     }
     if (visibleRarity !== null)
       rarityOdds.textContent = RG.oddsText(
-        engine.pendingRoll?.chances[visibleRarity] ??
-          engine.chances[visibleRarity],
+        visibleFinalOdds === null
+          ? engine.resultChance(
+              visibleRarity,
+              visibleGrade,
+              engine.pendingRoll?.chances,
+              engine.pendingRoll?.gradeChances,
+            )
+          : 1 / visibleFinalOdds,
       );
     rarityOdds.hidden = !showOdds;
-    remoteRoll.hidden = !engine.owns("remote-cont-roll");
+    remoteRoll.hidden = !engine.owns("remote-cont-roll") || tab === "roll";
     historyTab.disabled = !engine.owns("logbook");
     historyTab.textContent = engine.owns("logbook") ? "History" : "???";
     const nextHistoryKey = JSON.stringify(state.history);
@@ -996,9 +1412,11 @@ RG.startApp = () => {
           }),
         );
         time.dateTime = new Date(entry.at).toISOString();
+        const rarity = E("div", "history-rarity");
+        rarity.append(RG.RarityText(entry.id, "", entry.grade));
         row.append(
           time,
-          RG.RarityText(entry.id),
+          rarity,
           E("span", "history-points", `+${RG.format(entry.amount)} Points`),
         );
         historyView.append(row);
@@ -1012,6 +1430,7 @@ RG.startApp = () => {
     upgradesTab.disabled = !state.upgradesUnlocked;
     achievementsButton.textContent = engine.achievementsUnlocked ? "★" : "?";
     achievementsButton.disabled = !engine.achievementsUnlocked;
+    achievementsButton.hidden = !state.achievements.length;
     achievementsButton.setAttribute(
       "aria-label",
       engine.achievementsUnlocked ? "Achievements" : "?",
@@ -1023,6 +1442,9 @@ RG.startApp = () => {
       : "Fast rolls off";
     fastRolls.setAttribute("aria-pressed", String(engine.fastRolls));
     upgradeRows.forEach((view) => view.update());
+    upgradeGroups.forEach((group) => {
+      group.node.hidden = group.rows.every((view) => view.node.hidden);
+    });
     repeatableCategory.disabled = !engine.repeatablesUnlocked;
     repeatableCategory.textContent = engine.repeatablesUnlocked
       ? "Upgrades"
@@ -1043,6 +1465,7 @@ RG.startApp = () => {
     passiveStat.node.hidden = values.passive_pps === 0;
     passiveStat.update(`${RG.format(values.passive_pps)} / second`);
     sortControls.hidden = !engine.owns("collection-book-2");
+    foundCounter.textContent = `${state.counts.filter((count) => count > 0).length} / ${RG.rarities.length} found`;
     sortSelect.value = state.collectionSort;
     sortSelect.querySelector('option[value="count"]').hidden = !showQuantity;
     sortSelect.querySelector('option[value="count"]').disabled = !showQuantity;
@@ -1052,13 +1475,48 @@ RG.startApp = () => {
     saveStatus.textContent = engine.saveOK
       ? ""
       : engine.saveMessage || "Saving unavailable";
-    const chances = engine.chances;
     collectionRows.forEach((view, id) => {
       const unlocked = state.counts[id] > 0;
       view.row.classList.toggle("found", unlocked);
       view.label.replaceChildren(
-        unlocked ? RG.RarityText(id) : E("span", "locked-rarity", "???"),
+        unlocked
+          ? RG.RarityText(id, "", engine.bestGrade(id))
+          : E("span", "locked-rarity", "???"),
       );
+      view.gradeDetails.hidden = !unlocked || !engine.owns("grading-kit");
+      if (view.gradeDetails.open && !view.gradeDetails.hidden) {
+        if (!view.gradeViews.length) {
+          view.gradeViews = RG.gradeOrder.map((grade) => {
+            const tile = E("div", "grade-variant");
+            tile.tabIndex = 0;
+            const letter = E("span"),
+              quantity = E("span", "grade-quantity");
+            tile.append(letter, quantity);
+            RG.Tooltip(tile, () =>
+              grade.rank < engine.stats.grade_limit
+                ? RG.GradeInfo(grade, engine, id)
+                : "???",
+            );
+            view.variants.append(tile);
+            return { tile, letter, quantity, grade: grade.id };
+          });
+        }
+        view.gradeViews.forEach(({ tile, letter, quantity, grade }) => {
+          const known = RG.rarityGrades[grade].rank < values.grade_limit;
+          tile.hidden = state.gradeCounts[id][grade] === 0;
+          tile.classList.toggle("collected", state.gradeCounts[id][grade] > 0);
+          tile.classList.toggle("locked", !known);
+          letter.replaceChildren(
+            known ? RG.RarityGrade(grade) : E("span", "", "???"),
+          );
+          quantity.hidden = !showQuantity || !known;
+          quantity.textContent = `×${RG.format(state.gradeCounts[id][grade])}`;
+          tile.setAttribute(
+            "aria-label",
+            known ? `Grade ${RG.rarityGrades[grade].name}` : "Locked Grade",
+          );
+        });
+      }
       view.row.style.setProperty(
         "--strip-color",
         unlocked ? RG.rarities[id].color : "#777777",
@@ -1072,23 +1530,23 @@ RG.startApp = () => {
       view.odds.hidden = !showOdds;
       view.odds.textContent = showOdds
         ? unlocked
-          ? RG.oddsText(chances[id])
+          ? RG.oddsText(engine.resultChance(id, engine.bestGrade(id)))
           : "???"
         : "";
       view.odds.title =
         showOdds && unlocked
-          ? `${(chances[id] * 100).toPrecision(4)}% chance per roll`
+          ? `${(engine.resultChance(id, engine.bestGrade(id)) * 100).toPrecision(4)}% chance per roll`
           : "";
-      view.stamp.hidden = !state.stamped[id];
+      view.badges.update(state, id);
       view.row.classList.toggle("stamped", state.stamped[id]);
       view.row.classList.toggle("has-odds", showOdds);
       view.row.classList.toggle("has-quantity", showQuantity);
       view.payout.textContent = unlocked
-        ? `${RG.format(engine.reward(id))} Points`
+        ? `${RG.format(engine.reward(id, engine.bestGrade(id)) + (RG.rarityGrades[engine.bestGrade(id)]?.passiveSeconds || 0) * values.passive_pps)} Points`
         : "???";
     });
     const sorted = [...collectionRows];
-    if (engine.owns("collection-book-2"))
+    if (engine.owns("collection-book-2") && state.collectionSort !== "unsorted")
       sorted.sort((a, b) => {
         const aKnown = state.counts[a.id] > 0,
           bKnown = state.counts[b.id] > 0;
@@ -1104,10 +1562,23 @@ RG.startApp = () => {
     if (sorted.some((view, index) => grid.children[index] !== view.row))
       sorted.forEach((view) => grid.append(view.row));
   }
+  const luckyDie = RG.LuckyDie(engine, update);
+  root.append(luckyDie.node);
   update();
   setTab(tab);
+  scheduleAutoRoll();
   let lastPassiveSave = Date.now();
+  let displayedLuck = engine.stats.luck;
   const passiveTimer = setInterval(() => {
+    if (prestiging) {
+      engine.accrue();
+      return;
+    }
+    luckyDie.update();
+    if (displayedLuck !== engine.stats.luck) {
+      displayedLuck = engine.stats.luck;
+      update();
+    }
     const achievementsBefore = engine.state.achievements.length;
     const lifetimeBefore = engine.state.lifetime;
     if (engine.accrue() > 0) {
@@ -1116,14 +1587,19 @@ RG.startApp = () => {
       repeatableRows.forEach((view) => view.update());
       if (
         engine.state.achievements.length !== achievementsBefore ||
-        [25, 50, 100].some(
+        [10, 25, 50, 100, 75000, 100000, 150000].some(
           (milestone) =>
             lifetimeBefore < milestone && engine.state.lifetime >= milestone,
         )
       )
         update();
     }
-    if (engine.stats.passive_pps > 0 && Date.now() - lastPassiveSave >= 5000) {
+    bodyTree.update();
+    sidebarStatRows.forEach((view) => view.update(engine));
+    if (
+      (engine.stats.passive_pps > 0 || engine.state.meta.prestiges > 0) &&
+      Date.now() - lastPassiveSave >= 5000
+    ) {
       engine.save();
       lastPassiveSave = Date.now();
       saveStatus.textContent = engine.saveOK ? "" : engine.saveMessage;
@@ -1131,6 +1607,7 @@ RG.startApp = () => {
   }, 250);
   function visibilityChanged() {
     if (document.hidden) {
+      clearTimeout(autoTimer);
       engine.accrue();
       engine.save();
     } else if (
@@ -1139,18 +1616,23 @@ RG.startApp = () => {
     ) {
       cancelAnimationFrame(frame);
       finish();
+    } else if (!document.hidden) {
+      scheduleAutoRoll();
     }
   }
   document.addEventListener("visibilitychange", visibilityChanged);
   function stop() {
     if (stopped) return;
     stopped = true;
+    clearTimeout(autoTimer);
     clearInterval(passiveTimer);
     cancelAnimationFrame(frame);
     activeRoll = null;
     engine.cancelRoll();
     stopSound();
+    luckyDie.stop();
     RG.stopOrbs();
+    RG.stopAchievementShaders();
     treasureField.stop();
     nightMarket.stop();
     RG.clearTooltips();

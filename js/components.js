@@ -6,7 +6,7 @@
     if (text !== undefined) node.textContent = text;
     return node;
   };
-  RG.RarityText = (id, size = "") => {
+  RG.RarityText = (id, size = "", gradeId = null) => {
     const rarity = RG.rarities[id];
     const node = RG.el(
       "span",
@@ -16,13 +16,115 @@
     node.style.setProperty("--rarity-color", rarity.color);
     node.style.setProperty("--rarity-stroke", `${rarity.appearance.stroke}px`);
     node.style.setProperty("--rarity-weight", rarity.appearance.weight);
-    return node;
+    const grade = RG.rarityGrades[gradeId];
+    if (!grade) return node;
+    const wrapper = RG.el("span", `graded-rarity ${size}`);
+    const badge = RG.RarityGrade(gradeId);
+    wrapper.append(node, badge);
+    return wrapper;
+  };
+  RG.RarityGrade = (id) => {
+    const grade = RG.rarityGrades[id];
+    const badge = RG.el(
+      "span",
+      `rarity-grade-badge${grade.treatment === "gradient" ? " advanced" : ""}${grade.name === "Ω" ? " omega" : ""}`,
+      grade.name,
+    );
+    badge.style.setProperty("--grade-color", grade.color);
+    badge.setAttribute("aria-label", `Grade ${grade.name}`);
+    return badge;
+  };
+  RG.GradeInfo = (grade, engine, rarityId) => {
+    const info = RG.el("div", "rarity-grade-info");
+    info.append(
+      RG.el("strong", "", `Grade ${grade.name}`),
+      RG.el(
+        "p",
+        "",
+        `+${RG.format((grade.pointMultiplier - 1) * 100)}% rolling Points`,
+      ),
+    );
+    if (grade.discoveryPoints)
+      info.append(
+        RG.el(
+          "p",
+          "",
+          `+${grade.discoveryPoints} Points on first rarity discovery`,
+        ),
+      );
+    if (grade.passiveSeconds)
+      info.append(
+        RG.el(
+          "p",
+          "",
+          `Bonus: ${grade.passiveSeconds} seconds of passive Points on this roll`,
+        ),
+      );
+    if (engine.owns("lucky-eye"))
+      info.append(
+        RG.el(
+          "p",
+          "",
+          `Grade odds: ${RG.oddsText(engine.gradeChances[grade.id])}`,
+        ),
+        RG.el(
+          "p",
+          "",
+          `Rarity + Grade odds: ${RG.oddsText(engine.resultChance(rarityId, grade.id))}`,
+        ),
+      );
+    if (engine.owns("inventory"))
+      info.append(
+        RG.el(
+          "p",
+          "",
+          `Collected: ${RG.format(engine.state.gradeCounts[rarityId][grade.id])}`,
+        ),
+      );
+    return info;
+  };
+  RG.CollectionBadges = () => {
+    const views = RG.collectionBadges.map((badge) => {
+      const node = RG.el("img", badge.className);
+      node.src = badge.image;
+      node.alt = badge.name;
+      node.hidden = true;
+      return { badge, node };
+    });
+    return {
+      nodes: views.map((view) => view.node),
+      update(state, id) {
+        views.forEach(({ badge, node }) => {
+          node.hidden = !state.badges[badge.id][id];
+        });
+      },
+    };
   };
   RG.Button = (label, action, className = "") => {
     const button = RG.el("button", `gloss-button ${className}`, label);
     button.type = "button";
     button.addEventListener("click", action);
     return button;
+  };
+  RG.TreeResetButton = ({ label, gain = "", enabled = false, onReset }) => {
+    const node = RG.Button(
+      "",
+      () => {
+        if (!node.disabled) onReset();
+      },
+      "tree-reset-button",
+    );
+    const title = RG.el("span"),
+      reward = RG.el("span");
+    node.append(title, reward);
+    function update(options) {
+      title.textContent = options.label;
+      reward.textContent = options.gain || "";
+      reward.hidden = !options.gain;
+      node.disabled = !options.enabled;
+    }
+    update({ label, gain, enabled });
+    return { node, update };
   };
   RG.DiceIcon = () => {
     const make = (tag, attrs) => {
@@ -109,8 +211,10 @@
       tooltip.style.left = `${left}px`;
       tooltip.style.top = `${Math.max(12, Math.min(top, innerHeight - box.height - 12))}px`;
     };
+    let currentStats;
     const show = () => {
       if (!definition.tooltip) return;
+      tooltip.textContent = definition.tooltip?.(currentStats) || "";
       tooltip.hidden = false;
       position();
     };
@@ -131,6 +235,7 @@
     return {
       node,
       update(engine) {
+        currentStats = engine.stats;
         node.hidden = !definition.unlocked(engine);
         value.textContent = definition.value(engine.stats);
         tooltip.textContent = definition.tooltip?.(engine.stats) || "";
@@ -138,24 +243,48 @@
       },
     };
   };
+  RG.upgradeTeased = (upgrade, engine) =>
+    !upgrade.requires || engine.owns(upgrade.requires);
+  RG.hiddenName = (name) => name.replace(/\S/g, "?");
   RG.Upgrade = (upgrade, engine, onPurchase) => {
     const node = RG.el("article", "upgrade");
     const content = RG.el("div", "upgrade-content");
-    content.append(
-      RG.el("div", "upgrade-name", upgrade.name),
-      RG.el("p", "upgrade-description", upgrade.description),
-    );
+    const name = RG.el("div", "upgrade-name", upgrade.name),
+      description = RG.el("p", "upgrade-description", upgrade.description);
+    content.append(name, description);
     const button = RG.Button("", () => onPurchase(upgrade.id), "upgrade-buy");
+    const badge = RG.collectionBadges.find((item) => item.id === upgrade.id);
+    if (badge) {
+      const image = RG.el("img", "upgrade-badge-icon");
+      image.src = badge.image;
+      image.alt = "";
+      node.append(image);
+      if (upgrade.id === "participation-prize")
+        RG.Tooltip(
+          node,
+          () =>
+            "+2% rolling value per doubling of rarity + Grade odds, up to +50%. Discovery bonuses and passive Points are separate. Applies to rolls started after purchase.",
+        );
+    }
     node.append(content, button);
     return {
       node,
       update() {
-        node.hidden = !!upgrade.requires && !engine.owns(upgrade.requires);
+        const available = engine.upgradeAvailable(upgrade),
+          locked = !available && !engine.owns(upgrade.id);
+        node.hidden = locked && !RG.upgradeTeased(upgrade, engine);
+        node.classList.toggle("locked", locked);
+        name.textContent = locked ? RG.hiddenName(upgrade.name) : upgrade.name;
+        description.textContent = locked
+          ? engine.requirementText(upgrade)
+          : upgrade.description;
         const owned = engine.owns(upgrade.id);
         node.classList.toggle("owned", owned);
         button.textContent = owned
           ? "Owned"
-          : `${RG.format(upgrade.cost)} Points`;
+          : locked
+            ? "Locked"
+            : `${RG.format(upgrade.cost)} Points`;
         button.disabled = !engine.canBuy(upgrade.id);
       },
     };
@@ -237,18 +366,20 @@
       },
     };
   };
-  RG.RepeatableUpgrade = (upgrade, engine, onPurchase) => {
+  RG.RepeatableUpgrade = (upgrade, engine, onPurchase, onBuyMax) => {
     const node = RG.el("article", "upgrade repeatable-upgrade");
     const content = RG.el("div", "upgrade-content");
-    const heading = RG.el("div", "upgrade-name", upgrade.name);
+    const heading = RG.el("div", "upgrade-name");
+    const title = RG.el("span", "", upgrade.name);
     const level = RG.el("span", "upgrade-level");
-    heading.append(level);
+    heading.append(title, level);
     const effect = RG.el("div", "upgrade-effect");
-    content.append(
-      heading,
-      RG.el("p", "upgrade-description", upgrade.description),
-      effect,
+    const description = RG.el(
+      "p",
+      "upgrade-description",
+      upgrade.description,
     );
+    content.append(heading, description, effect);
     const flash = RG.el("div", "purchase-flash");
     flash.setAttribute("aria-hidden", "true");
     const button = RG.Button(
@@ -269,13 +400,37 @@
       },
       "upgrade-buy",
     );
-    node.append(content, button, flash);
+    const maxButton = RG.Button(
+      "Max",
+      () => {
+        if (!onBuyMax(upgrade.id)) return;
+        flash.getAnimations().forEach((animation) => animation.cancel());
+        flash.animate(
+          [{ opacity: 0 }, { opacity: 1, offset: 0.18 }, { opacity: 0 }],
+          { duration: 850, easing: "ease-out" },
+        );
+      },
+      "upgrade-buy-max",
+    );
+    maxButton.setAttribute("aria-label", `Buy max ${upgrade.name}`);
+    const buttons = RG.el("div", "upgrade-buttons");
+    buttons.append(button, maxButton);
+    node.append(content, buttons, flash);
     return {
       node,
       update() {
         const count = engine.state.levels[upgrade.id],
-          stats = engine.stats;
-        node.hidden = !engine.repeatableAvailable(upgrade);
+          stats = engine.stats,
+          locked = !engine.repeatableAvailable(upgrade);
+        node.hidden = locked && !RG.upgradeTeased(upgrade, engine);
+        node.classList.toggle("locked", locked);
+        title.textContent = locked ? RG.hiddenName(upgrade.name) : upgrade.name;
+        description.textContent = locked
+          ? engine.requirementText(upgrade)
+          : upgrade.description;
+        effect.hidden = level.hidden = locked;
+        maxButton.hidden = locked || !engine.owns("shopping-cart");
+        maxButton.disabled = !engine.canBuyRepeatable(upgrade.id);
         node.classList.toggle(
           "owned",
           upgrade.max !== null && count >= upgrade.max,
@@ -283,22 +438,47 @@
         level.textContent =
           upgrade.max === null ? `Lv. ${count}` : `${count} / ${upgrade.max}`;
         effect.textContent = upgrade.effect(stats);
-        button.textContent =
-          upgrade.max !== null && count >= upgrade.max
+        button.textContent = locked
+          ? "Locked"
+          : upgrade.max !== null && count >= upgrade.max
             ? "Max level"
             : `${RG.format(engine.repeatableCost(upgrade.id))} Points`;
         button.disabled = !engine.canBuyRepeatable(upgrade.id);
       },
     };
   };
-  RG.GradeText = (grade) =>
-    RG.el("span", `grade-text grade-${grade.toLowerCase()}`, grade);
+  RG.GradeText = (grade) => {
+    const node = RG.el(
+      "span",
+      `grade-text grade-${grade.toLowerCase()}`,
+      grade,
+    );
+    const style = RG.rarityGrades.find((item) => item.name === grade);
+    if (style && !["S", "SS"].includes(grade)) node.style.color = style.color;
+    return node;
+  };
+  RG.AchievementTierStyle = (node, tierId = 0) => {
+    const tier = RG.achievementTiers[tierId];
+    node.dataset.tier = tier.name.toLowerCase();
+    node.style.setProperty("--tier-fill", tier.fill);
+    node.style.setProperty("--tier-stroke", tier.stroke);
+    return tier;
+  };
   RG.AchievementBox = (achievement, toast = false) => {
     const node = RG.el(
       "article",
       `achievement-box${toast ? " achievement-toast" : ""}`,
     );
+    node.dataset.achievementId = achievement.number;
+    const tier = RG.AchievementTierStyle(node, achievement.tier || 0);
     node.append(RG.el("span", "achievement-number", achievement.number));
+    node.append(
+      RG.el(
+        "div",
+        "achievement-tier",
+        `${achievement.tierUp ? "Tier up: " : ""}${tier.name}`,
+      ),
+    );
     const name = RG.el("div", "achievement-name");
     if (achievement.faceHeart) {
       name.setAttribute("aria-label", achievement.name);
@@ -316,10 +496,17 @@
     );
     node.append(
       RG.el("div", "achievement-requirement", achievement.requirementText),
-      RG.el("div", "achievement-reward", achievement.rewardText),
+      RG.el(
+        "div",
+        "achievement-reward",
+        achievement.tierUp ? "" : achievement.rewardText,
+      ),
     );
     const grade = RG.GradeText(achievement.grade);
     node.append(grade);
+    if (!toast && !achievement.faceHeart) RG.AchievementShader(name, tier);
+
+    if (toast) RG.AchievementSurface(node, tier);
     return node;
   };
   RG.AchievementTile = (achievement) => {
@@ -329,23 +516,30 @@
       node,
       update(engine) {
         const earned = engine.state.achievements.includes(achievement.id);
-        if (earned === previous) return;
-        previous = earned;
-        node.dataset.achievementId = achievement.number;
-        node.className = `achievement-tile ${earned ? "achievement-box earned" : "locked"}`;
-        node.setAttribute(
-          "aria-label",
-          earned
-            ? `Achievement ${achievement.number}: ${achievement.name}`
-            : `Achievement ${achievement.number}, locked`,
-        );
-        if (earned)
-          node.replaceChildren(...RG.AchievementBox(achievement).childNodes);
-        else
-          node.replaceChildren(
-            RG.el("span", "achievement-number", achievement.number),
-            RG.el("span", "achievement-question", "?"),
+        const tier = earned ? engine.achievementTier(achievement.id) : -1;
+        if (tier !== previous) {
+          previous = tier;
+          node.dataset.achievementId = achievement.number;
+          node.className = `achievement-tile ${earned ? "achievement-box earned" : "locked"}`;
+          node.setAttribute(
+            "aria-label",
+            earned
+              ? `Achievement ${achievement.number}: ${achievement.name}, ${RG.achievementTiers[tier].name}`
+              : `Achievement ${achievement.number}, locked`,
           );
+          if (earned) {
+            RG.AchievementTierStyle(node, tier);
+            node.replaceChildren(
+              ...RG.AchievementBox(engine.achievementView(achievement))
+                .childNodes,
+            );
+            RG.AchievementSurface(node, RG.achievementTiers[tier]);
+          } else
+            node.replaceChildren(
+              RG.el("span", "achievement-number", achievement.number),
+              RG.el("span", "achievement-question", "?"),
+            );
+        }
       },
     };
   };
@@ -375,6 +569,34 @@
     RG.changelog.forEach((entry) => node.append(content(entry)));
     return node;
   };
+  RG.ConfirmDialog = () => {
+    const node = RG.el("dialog", "confirm-dialog");
+    const text = RG.el("p");
+    const actions = RG.el("div", "confirm-actions");
+    let resolve = null;
+    const finish = (value) => {
+      resolve?.(value);
+      resolve = null;
+      if (node.open) node.close();
+    };
+    const cancel = RG.Button("Cancel", () => finish(false));
+    const ok = RG.Button("OK", () => finish(true), "confirm-ok");
+    actions.append(cancel, ok);
+    node.append(text, actions);
+    node.addEventListener("close", () => finish(false));
+    return {
+      node,
+      ask(message) {
+        finish(false);
+        text.textContent = message;
+        node.showModal();
+        cancel.focus();
+        return new Promise((done) => {
+          resolve = done;
+        });
+      },
+    };
+  };
   RG.ToastSystem = () => {
     const node = RG.el("div", "toast-stack");
     node.setAttribute("role", "region");
@@ -403,6 +625,18 @@
       const timer = setTimeout(() => toast.remove(), 6500);
       if (node.children.length > 3) node.firstElementChild.remove();
     };
+    const message = (...content) => {
+      if (
+        typeof node.showPopover === "function" &&
+        !node.matches(":popover-open")
+      )
+        node.showPopover();
+      const toast = RG.el("div", "message-toast");
+      toast.append(...content);
+      node.append(toast);
+      setTimeout(() => toast.remove(), 3200);
+      if (node.children.length > 3) node.firstElementChild.remove();
+    };
     const mount = (parent) => {
       if (
         typeof node.hidePopover === "function" &&
@@ -413,6 +647,6 @@
       if (node.children.length && typeof node.showPopover === "function")
         node.showPopover();
     };
-    return { node, show, mount };
+    return { node, show, message, mount };
   };
 })();
